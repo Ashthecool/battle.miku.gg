@@ -1,0 +1,308 @@
+/* ═══════════════════════════════════════════════
+   PLAYER SYSTEM — miku.battle.gg
+   ═══════════════════════════════════════════════ */
+
+        /* ═══════════════════════════════════════════════
+           NEW SCREENS — PLAYER SYSTEM STYLES
+           ═══════════════════════════════════════════════ */
+
+        @keyframes modal-pop {
+            0%   { transform: scale(0.85) translateY(20px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        @keyframes divine-shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* ── POINTS CHIP in header ──────────────────── */
+        #header-points {
+            display: flex; flex-direction: column; align-items: flex-end;
+        }
+        #header-points-value {
+            color: #fbbf24; font-weight: 900; font-size: 14px; letter-spacing: -0.02em;
+            transition: all 0.3s ease;
+        }
+
+        /* ── DAILY REWARD POPUP ─────────────────────── */
+        #daily-reward-overlay {
+            position: fixed; inset: 0; z-index: 70000;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+        #daily-reward-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #daily-reward-box {
+            background: linear-gradient(145deg, #0f172a, #1a0a2e);
+            border: 2px solid #a855f7;
+            border-radius: 28px; padding: 48px 40px;
+            text-align: center; width: 360px;
+            box-shadow: 0 0 80px rgba(168,85,247,0.4), 0 40px 60px rgba(0,0,0,0.7);
+            animation: modal-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative; overflow: hidden;
+        }
+        #daily-reward-box::before {
+            content:''; position:absolute; inset:0;
+            background: linear-gradient(135deg,transparent 40%,rgba(255,255,255,0.04) 50%,transparent 60%);
+            background-size:300% 300%; animation: divine-shimmer 3s infinite linear;
+            pointer-events: none;
+        }
+        .daily-reward-coin {
+            font-size: 64px; margin-bottom: 16px; display: block;
+            animation: coin-spin 0.8s ease-out forwards;
+        }
+        @keyframes coin-spin {
+            0%   { transform: scale(0) rotateY(0deg); opacity:0; }
+            60%  { transform: scale(1.2) rotateY(360deg); opacity:1; }
+            100% { transform: scale(1) rotateY(360deg); }
+        }
+        @keyframes points-count-up { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+        .daily-points-amount {
+            font-size: 56px; font-weight: 900; color: #fbbf24;
+            text-shadow: 0 0 30px rgba(251,191,36,0.6);
+            animation: points-count-up 0.5s 0.4s ease-out both;
+        }
+
+        /* ── COLLECTION SCREEN ──────────────────────── */
+        .collection-filter-btn {
+            padding: 6px 16px; border-radius: 20px; font-size: 11px;
+            font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+            cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5);
+            transition: all 0.2s ease;
+        }
+        .collection-filter-btn.active {
+            background: rgba(99,102,241,0.2); border-color: #6366f1; color: #a5b4fc;
+        }
+        .collection-filter-btn:hover:not(.active) {
+            background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
+        }
+        .collection-card-wrap {
+            position: relative; cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .collection-card-wrap:hover { transform: translateY(-4px); }
+        .collection-card-wrap.locked { opacity: 0.35; filter: grayscale(1) brightness(0.6); }
+        .collection-card-wrap.locked:hover { opacity: 0.45; transform: none; }
+        .owned-count-badge {
+            position: absolute; top: -8px; right: -8px;
+            background: #6366f1; border: 2px solid #13111c;
+            border-radius: 10px; padding: 1px 7px;
+            font-size: 10px; font-weight: 900; color: white;
+            z-index: 50; pointer-events: none;
+        }
+        .locked-overlay {
+            position: absolute; inset: 0; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 40; pointer-events: none;
+        }
+        .locked-overlay i { opacity: 0.5; }
+
+        /* ── DECK BUILDER SCREEN ────────────────────── */
+        #deck-builder-layout {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 24px; height: 100%; align-items: start;
+        }
+        .deck-slot-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+        }
+        .deck-card-slot {
+            aspect-ratio: 2/3; border-radius: 10px;
+            border: 2px dashed rgba(99,102,241,0.3);
+            background: rgba(99,102,241,0.04);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s ease; position: relative;
+            overflow: hidden;
+        }
+        .deck-card-slot.filled {
+            border-style: solid; border-color: rgba(99,102,241,0.5);
+            background: rgba(99,102,241,0.1);
+        }
+        .deck-card-slot.filled:hover { border-color: #ef4444; background: rgba(239,68,68,0.1); }
+        .deck-card-slot img {
+            width: 100%; height: 100%; object-fit: cover; border-radius: 8px;
+        }
+        .deck-card-slot .remove-x {
+            position: absolute; inset: 0;
+            background: rgba(239,68,68,0.85); border-radius: 8px;
+            display: none; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: 900; color: white;
+        }
+        .deck-card-slot.filled:hover .remove-x { display: flex; }
+        .pick-card-list { display: flex; flex-direction: column; gap: 6px; max-height: 400px; overflow-y: auto; }
+        .pick-card-list::-webkit-scrollbar { width: 4px; }
+        .pick-card-list::-webkit-scrollbar-track { background: transparent; }
+        .pick-card-list::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.4); border-radius: 4px; }
+        .pick-card-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px; border-radius: 10px; cursor: pointer;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+            transition: all 0.15s ease;
+        }
+        .pick-card-row:hover { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.4); }
+        .pick-card-row.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+        .pick-card-row img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink:0; }
+        .pick-card-row .pick-name { font-size: 12px; font-weight: 700; flex:1; }
+        .pick-card-row .pick-count { font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 700; }
+        .deck-tab {
+            padding: 8px 20px; border-radius: 8px; font-size: 12px; font-weight: 800;
+            cursor: pointer; border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5);
+            transition: all 0.2s ease; text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .deck-tab.active { background: rgba(99,102,241,0.2); border-color: #6366f1; color: #a5b4fc; }
+        .deck-save-btn {
+            width: 100%; padding: 12px; border-radius: 12px; font-weight: 900;
+            font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;
+            cursor: pointer; transition: all 0.2s ease; border: none;
+        }
+        .deck-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ── PACK IMAGE AREA ────────────────────────── */
+        .pack-image-area {
+            width: 100%;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; background: transparent;
+            overflow: visible; position: relative;
+        }
+        .pack-img-preview {
+            width: 50%; max-width:150px; height: auto; display: block;
+            border-radius: 10px; object-fit: contain;
+            filter: drop-shadow(0 10px 36px var(--pack-glow-color, rgba(168,85,247,0.7)))
+                    drop-shadow(0 2px 10px rgba(0,0,0,0.9));
+            transition: transform 0.4s cubic-bezier(0.23,1,0.32,1),
+                        filter 0.4s ease;
+        }
+        .pack-card:hover .pack-img-preview {
+            transform: scale(1.08) translateY(-8px);
+            filter: drop-shadow(0 18px 56px var(--pack-glow-color, rgba(168,85,247,0.95)))
+                    drop-shadow(0 2px 10px rgba(0,0,0,0.9))
+                    brightness(1.1);
+        }
+        .pack-img-placeholder {
+            width: 100%; padding: 40px 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ── PACK SHOP SCREEN ───────────────────────── */
+        #pack-shop-layout {
+            display: grid; grid-template-columns: 1fr 380px; gap: 32px;
+            align-items: start; max-width: 1100px; margin: 0 auto;
+        }
+        .pack-card {
+            background: linear-gradient(160deg, #1c1030 0%, #0d0818 100%);
+            border: 1.5px solid rgba(168,85,247,0.25); border-radius: 28px;
+            padding: 28px 22px 26px; text-align: center; position: relative;
+            overflow: visible;
+            transition: transform 0.4s cubic-bezier(0.23,1,0.32,1),
+                        box-shadow 0.4s ease,
+                        border-color 0.4s ease;
+        }
+        .pack-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--pack-border-color, rgba(168,85,247,0.7));
+            box-shadow: 0 32px 80px var(--pack-glow-color, rgba(168,85,247,0.3)),
+                        0 0 0 1px var(--pack-border-color, rgba(168,85,247,0.15));
+        }
+        .pack-card::before {
+            content:''; position:absolute; inset:0; border-radius: 28px;
+            background: linear-gradient(135deg,transparent 40%,rgba(255,255,255,0.03) 50%,transparent 60%);
+            background-size:300% 300%; animation: divine-shimmer 4s infinite linear;
+            pointer-events: none;
+        }
+        .pack-open-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 32px; border-radius: 14px; font-weight: 900;
+            font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em;
+            cursor: pointer; border: none; transition: all 0.2s ease;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: white; box-shadow: 0 8px 24px rgba(168,85,247,0.4);
+        }
+        .pack-open-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(168,85,247,0.5); }
+        .pack-open-btn:active { transform: scale(0.96); }
+        .pack-open-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* Pack reveal overlay */
+        #pack-reveal-overlay {
+            position: fixed; inset: 0; z-index: 65000;
+            background: rgba(0,0,0,0.92); backdrop-filter: blur(12px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 32px; opacity: 0; pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+        #pack-reveal-overlay.visible { opacity: 1; pointer-events: auto; }
+        .pack-reveal-cards {
+            display: flex; gap: 20px; align-items: center; justify-content: center;
+        }
+        .reveal-card-wrap {
+            width: 120px; opacity: 0;
+            animation: reveal-card-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+        }
+        @keyframes reveal-card-in {
+            0%   { opacity:0; transform: translateY(40px) scale(0.7) rotateY(90deg); }
+            100% { opacity:1; transform: translateY(0) scale(1) rotateY(0deg); }
+        }
+        .reveal-card-wrap .new-badge {
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            background: #22c55e; border-radius: 10px; padding: 2px 10px;
+            font-size: 9px; font-weight: 900; color: white; text-transform: uppercase;
+            letter-spacing: 0.1em; white-space: nowrap; z-index: 10;
+        }
+        .reveal-card-wrap .dup-badge {
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            background: #6366f1; border-radius: 10px; padding: 2px 10px;
+            font-size: 9px; font-weight: 900; color: white; text-transform: uppercase;
+            letter-spacing: 0.1em; white-space: nowrap; z-index: 10;
+        }
+
+        /* Pack history */
+        .pack-history-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px; border-radius: 10px;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+            margin-bottom: 8px;
+        }
+        .pack-history-rarity {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+
+        /* ── STATS PANEL (Lobby) ─────────────────────── */
+        .stat-chip {
+            display: flex; flex-direction: column; align-items: center;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px; padding: 20px 28px; gap: 4px;
+        }
+        .stat-chip-value {
+            font-size: 36px; font-weight: 900; line-height: 1;
+        }
+        .stat-chip-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.12em; opacity: 0.4;
+        }
+
+        /* Active deck badge in lobby */
+        .active-deck-chip {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3);
+            border-radius: 12px; padding: 8px 16px;
+        }
+
+        /* scrollbar for new screens */
+        .custom-scroll { scrollbar-width: thin; scrollbar-color: rgba(99,102,241,0.3) transparent; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 4px; }
+
+        /* rarity colour helpers */
+        .rc-COMMON    { color: #94a3b8; } .rb-COMMON    { background: #64748b; }
+        .rc-UNCOMMON  { color: #34d399; } .rb-UNCOMMON  { background: #10b981; }
+        .rc-RARE      { color: #60a5fa; } .rb-RARE      { background: #3b82f6; }
+        .rc-EPIC      { color: #c084fc; } .rb-EPIC      { background: #a855f7; }
+        .rc-LEGENDARY { color: #fbbf24; } .rb-LEGENDARY { background: #f59e0b; }

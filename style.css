@@ -1,0 +1,1610 @@
+:root {
+            --bg-deep: #0a090f;
+            --bg-sidebar: #13111c;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #6366f1;
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: var(--bg-deep);
+            color: #f8fafc;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; 
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Entry Animations */
+        @keyframes quick-flash { 0% { filter: brightness(1); } 50% { filter: brightness(3); } 100% { filter: brightness(1); } }
+        @keyframes shake-flash {
+            0%, 100% { transform: translateX(0); filter: brightness(1); }
+            20% { transform: translateX(-5px); filter: brightness(2); }
+            40% { transform: translateX(5px); }
+            80% { transform: translateX(5px); }
+        }
+        @keyframes bounce-shake {
+            0% { transform: translateY(-50px); opacity: 0; }
+            60% { transform: translateY(0); }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes epic-entry {
+            0% { transform: scale(0.5) rotate(0deg); opacity: 0; }
+            50% { transform: scale(2) rotate(180deg); opacity: 1; z-index: 100; }
+            80% { transform: scale(1) rotate(360deg); }
+            100% { transform: translateY(0); }
+        }
+        @keyframes legendary-glow {
+            0% { box-shadow: 0 0 0 0px rgba(255, 215, 0, 0.8); transform: scale(1); }
+            50% { box-shadow: 0 0 60px 30px rgba(255, 215, 0, 0); transform: scale(1.1); }
+            100% { box-shadow: 0 0 0 0px rgba(255, 215, 0, 0); transform: scale(1); }
+        }
+
+        .anim-common { animation: quick-flash 0.3s ease-out forwards; }
+        .anim-uncommon { animation: shake-flash 0.4s ease-in-out forwards; }
+        .anim-rare { animation: bounce-shake 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .anim-epic { animation: epic-entry 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+        .anim-legendary { animation: legendary-glow 1s ease-out forwards; border-color: #fbbf24 !important; }
+
+        /* The physical slam movement (Player attacking Enemy) */
+        @keyframes slam-up {
+            0% { transform: translate(0, 0) scale(1); z-index: 100; }
+            20% { transform: translateY(15px) scale(0.95); z-index: 100; } /* Wind up */
+            45% { transform: translate(calc(var(--slam-target-x, 0px)), calc(calc(var(--slam-target-y, 0px) - 80px))) scale(1.1); z-index: 100; } /* IMPACT */
+            100% { transform: translate(0, 0) scale(1); z-index: 1; }
+        }
+
+        .animate-slam-up { animation: slam-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+        /* The violent red impact flash */
+        @keyframes hit-flicker {
+            0% { filter: brightness(1); }
+            30% { filter: brightness(3) sepia(1) saturate(10) contrast(4) drop-shadow(2px 2px 20px red); }
+            100% { filter: brightness(1); }
+        }
+
+        .animate-hit-flicker { animation: hit-flicker 0.4s ease-out forwards; }
+
+        @keyframes heal-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); transform: scale(1); }
+            50% { box-shadow: 0 0 0 14px rgba(34, 197, 94, 0); transform: scale(1.02); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); transform: scale(1); }
+        }
+
+        @keyframes attack-swing {
+            0% { transform: translateY(0) rotate(0deg); }
+            30% { transform: translateY(-4px) rotate(-2deg); }
+            60% { transform: translateY(0) rotate(2deg); }
+            100% { transform: translateY(0) rotate(0deg); }
+        }
+
+        @keyframes ability-flash {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            50% { box-shadow: 0 0 20px 8px rgba(59, 130, 246, 0.4); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
+        .animate-heal { animation: heal-pulse 0.7s ease-out forwards; }
+        .animate-attack { animation: attack-swing 0.35s ease-out forwards; }
+        .animate-ability { animation: ability-flash 0.65s ease-in-out forwards; }
+        .animate-silenced { animation: ability-flash 0.65s ease-in-out forwards; filter: grayscale(1) brightness(0.8); }
+
+        /* Card Styling */
+        .card-nexus {
+            width: 150px;
+            height: 150px;
+            background: #111;
+            border: 2px solid #333;
+            border-radius: 10px;
+            position: relative;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            padding: 5px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            z-index: 1;
+            user-select: none;
+        }
+
+        .card-nexus:active { cursor: grabbing; }
+
+        .card-vault {
+            width: 250px;
+            height: 350px;
+            padding: 8px;
+        }
+
+        .card-vault .cost-badge {
+            width: 28px;
+            height: 28px;
+            font-size: 12px;
+            font-weight: 900;
+        }
+
+        .card-vault .stat-badge {
+            width: 26px;
+            height: 26px;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .card-vault img {
+            width: 200px !important;
+            height: 200px !important;
+            object-fit: cover;
+            padding: 5px;
+            border-radius: 50px;
+            margin-top: 10px !important;
+        }
+
+        .card-vault .text-\[7px\] {
+            font-size: 9px;
+        }
+
+        .card-vault .text-\[9px\] {
+            font-size: 11px;
+        }
+
+        .card-vault .text-\[6px\] {
+            font-size: 8px;
+        }
+
+        .rarity-common { border-color: #64748b; }
+        .rarity-uncommon { border-color: #10b981; }
+        .rarity-rare { border-color: #3b82f6; }
+        .rarity-epic { border-color: #a855f7; }
+        .rarity-legendary { border-color: #f59e0b; }
+
+        .stat-badge {
+            position: absolute;
+            bottom: -4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 800;
+            z-index: 20;
+        }
+        .atk-badge { left: -4px; background: #ef4444; }
+        .hp-badge { right: -4px; background: #22c55e; }
+        
+        .cost-badge {
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            width: 24px;
+            height: 24px;
+            background: #6366f1;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 900;
+            z-index: 30;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .rarity-badge {
+            position: absolute;
+            right: 0;
+            padding: 2px 6px;
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #c7d2fe;
+            z-index: 30;
+        }
+
+        .slot {
+            width: 100px;
+            height: 135px;
+            background: var(--glass);
+            border: 2px dashed var(--glass-border);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .slot.drag-over { background: rgba(99, 102, 241, 0.15); border-color: var(--accent); border-style: solid; transform: scale(1.02); }
+
+        .is-exhausted { opacity: 0.6; filter: grayscale(0.7); cursor: not-allowed; }
+        .is-guard { box-shadow: 0 0 15px #f59e0b; }
+
+        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
+
+        .screen { transition: opacity 0.3s ease; height: calc(100vh - 80px); width: 100%; overflow-y: auto; }
+        #screen-arena { overflow: visible !important; }
+        #player-hand { overflow: visible !important; z-index: 100 !important; }
+        .slot { overflow: visible !important; }
+        .hidden-screen { display: none !important; pointer-events: none; }
+
+        /* Sidebar active states */
+        .nav-btn.active { background: rgba(99, 102, 241, 0.1); color: #818cf8; border-right: 2px solid #6366f1; border-radius: 0; }
+        
+        /* Sidebar layout and collapse behavior */
+        #sidebar {
+            width: 16rem;
+            transition: width 0.3s ease;
+            overflow: hidden;
+        }
+
+        #sidebar.collapsed {
+            width: 4.75rem;
+        }
+
+        #sidebar.collapsed .sidebar-title,
+        #sidebar.collapsed .sidebar-quickstart-text,
+        #sidebar.collapsed .sidebar-user-text,
+        #sidebar.collapsed .nav-text {
+            display: none !important;
+        }
+
+        #sidebar.collapsed .nav-btn {
+            justify-content: center;
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+            text-align: center;
+        }
+
+        .nav-btn { transition: padding 0.3s ease; }
+
+        #main-content {
+            margin-left: 16rem;
+            width: calc(100vw - 16rem);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: margin-left 0.3s ease, width 0.3s ease;
+        }
+
+        #main-content.sidebar-collapsed {
+            margin-left: 4.75rem;
+            width: calc(100vw - 4.75rem);
+        }
+
+        .mobile-sidebar-toggle { display: none; }
+
+        @media (max-width: 768px) {
+            :root { --bg-sidebar: rgba(19, 17, 28, 0.98); }
+            body { overflow: auto; }
+
+            #sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 16rem;
+                z-index: 60;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease, width 0.3s ease;
+                backdrop-filter: blur(8px);
+            }
+
+            #sidebar:not(.collapsed) {
+                transform: translateX(0);
+            }
+
+            #sidebar.collapsed {
+                transform: translateX(-100%);
+            }
+
+            #main-content {
+                margin-left: 0;
+                width: 100vw;
+                min-height: 100vh;
+            }
+
+            #main-content.sidebar-collapsed {
+                margin-left: 0;
+                width: 100vw;
+            }
+
+            .sidebar-title, .sidebar-quickstart-text, .sidebar-user-text, .nav-text { display: block !important; }
+
+            .nav-btn {
+                justify-content: flex-start;
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            .mobile-sidebar-toggle { display: flex; }
+            #sidebar-toggle { display: none; }
+            #main-header { position: sticky; top: 0; z-index: 50; }
+
+            .screen { padding: 1rem !important; height: calc(100vh - 80px); }
+            .overflow-y-auto { overflow-y: auto !important; }
+        }
+
+        /* Prevent overlap on the hand */
+        #player-hand {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding-top: 10px; /* Space for the cost badges */
+        }
+        #player-hand::-webkit-scrollbar { display: none; }
+
+        /* Vault Series Headers */
+        .series-header h3 {
+            border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+            padding-bottom: 8px;
+        }
+
+        /* Arena card stacking + focus */
+        #screen-arena {
+            position: relative;
+            z-index: 1;
+            overflow: visible;
+        }
+
+        .slot {
+            position: relative;
+            z-index: 5;
+            overflow: visible;
+        }
+
+        .slot > .card-nexus {
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+            padding: 3px;
+        }
+
+        .slot > .card-nexus img {
+            width: 86px !important;
+            height: 86px !important;
+            border-radius: 20px;
+            margin: auto;
+        }
+
+        .card-nexus, .card-vault {
+            z-index: 1;
+            position: relative;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, z-index 0s;
+            transform-origin: center bottom;
+        }
+
+        .card-nexus img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50px;
+        }
+
+        .card-nexus:hover, .card-vault:hover {
+            z-index: 1000 !important;
+            transform: scale(1.08);
+            box-shadow: 0 18px 28px rgba(0, 0, 0, 0.65);
+        }
+
+        .card-nexus:hover img, .card-vault:hover img {
+            transform: scale(1.10);
+            filter: saturate(1.10);
+        }
+
+        .card-nexus img, .card-vault img {
+            transition: transform 0.2s ease, filter 0.2s ease;
+            transform-origin: center center;
+        }
+
+        .description-box {
+            font-size: 13px;
+            color: #a78bfa;
+            font-weight: bold;
+            text-align: center;
+            padding: 3px 4px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 4px;
+            line-height: 1.3;
+            width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            pointer-events: auto !important;
+            display: -webkit-box;
+            line-clamp: 4;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            height: auto; 
+            max-height: 100px; 
+            position: relative; 
+            transition: background-color 0.2s ease;
+            z-index: 10;
+        }
+
+        #screen-arena .card-nexus .description-box {
+            max-height: 250px;
+            overflow: visible;
+            line-clamp: unset;
+            -webkit-line-clamp: unset;
+            background: rgba(13, 11, 22, 0.98); 
+            box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.8);
+            position: absolute;
+            bottom: 22px; 
+            left: 10%;
+            z-index: 50;
+        }
+
+
+        .card-vault:hover .description-box {
+            max-height: 250px;
+            overflow: visible;
+            line-clamp: unset;
+            -webkit-line-clamp: unset;
+            background: rgba(13, 11, 22, 0.98); 
+            box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.8);
+            position: absolute;
+            bottom: 22px; 
+            left: 10%;
+            z-index: 50;
+
+        }
+
+        .card-vault:hover img {
+            position: relative !important;
+            bottom: -5px !important;
+            filter: contrast(120%);
+        }
+
+        /* 1. Ensure the title can move independently */
+        #card-title {
+            transition: transform 0.3s ease, color 0.3s ease;
+            position: relative;
+            z-index: -2;
+        }
+
+        /* 2. When the card is hovered, slide the title UP */
+        
+        .card-vault:hover #card-title {
+            /* Move it up by 40 pixels (adjust this number to fit your card art) */
+            transform: translateY(-220px); 
+            font-weight: 100;
+            font-size: 13px;
+            
+            /* Optional: Make the text glow or change color so it stands out over the image */
+            color: #b177b600;
+            -webkit-text-stroke: 1px rgb(255, 125, 212);
+        }
+
+        .description-box strong {
+            font-size: 1.2em;
+            font-weight: 900;
+        }
+
+        .description-box span {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        /* Hide description for cards while they are in the arena/hand */
+        #screen-arena .card-nexus .description-box {
+            display: none;
+        }
+
+        /* Optional: Make the hover effect on the board slightly less aggressive since we have a preview panel now */
+        #screen-arena .card-nexus:hover {
+            transform: scale(1.05); 
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* The fixed preview panel on the right side of the screen */
+        #card-preview-panel {
+            position: fixed;
+            right: 3rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 250px;
+            pointer-events: none; /* Ensures it doesn't block your mouse clicks */
+            z-index: 9999;
+            display: none;
+            transition: opacity 0.2s ease;
+        }
+
+        #card-preview-panel img {
+            width: 200px ;
+            height: 200px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Show the panel when active */
+        #card-preview-panel.active {
+            display: block;
+            animation: bounce-shake 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Force the description to reappear inside the preview panel */
+        #card-preview-panel .card-nexus .description-box {
+            display: block !important;
+        }
+
+        /* Make the preview card huge and majestic */
+        #card-preview-panel .card-nexus {
+            width: 100%;
+            height: 360px;
+            transform: scale(1.3);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 1);
+            margin: 0;
+        }
+
+        /* Base container for the link */
+        .lore-link {
+            position: relative;
+            display: inline; /* Keeps it inside the text flow */
+            cursor: help;
+            z-index: 10; /* Ensures it's above the card background */
+        }
+
+        /* Standard Link Appearance */
+        .lore-link:not(.is-custom) {
+            color: #a5b4fc;
+            text-decoration: underline dotted #6366f1;
+            font-weight: bold;
+        }
+
+        /* Custom/Secret Link Appearance (Looks like normal text) */
+        .lore-link.is-custom {
+            color: inherit;
+            text-decoration: none;
+            font-weight: inherit;
+        }
+
+        /* 1. The Trigger Text (The part the user hovers over) */
+        .lore-link {
+            color: #818cf8; /* Light indigo */
+            text-decoration: underline dotted #6366f1;
+            font-weight: bold;
+            cursor: help;
+            transition: color 0.2s ease;
+            position: relative;
+            display: inline-block;
+        }
+
+        .lore-link:hover {
+            color: #c084fc; /* Glows purple on hover */
+            text-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
+        }
+
+        /* 2. The Lore Tooltip Popup */
+        .lore-tooltip {
+            pointer-events: none;
+            position: absolute;
+            bottom: 120%; /* Position above the text */
+            left: 50%;
+            transform: translateX(-50%) scale(0.9);
+            width: 90px;
+            height: 80px;
+            background: rgba(13, 11, 22, 0.95); /* Deep dark background */
+            border: 1px solid rgba(167, 139, 250, 0.4);
+            border-radius: 8px;
+            padding: 10px;
+            opacity: 0;
+            visibility: hidden;
+            z-index: 9999;
+            box-shadow: 
+                0 10px 30px rgba(0, 0, 0, 0.8),
+                0 0 15px rgba(99, 102, 241, 0.2);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            overflow: hidden;
+        }
+
+        /* Show state */
+        .lore-link:hover .lore-tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) scale(1);
+        }
+
+        /* 3. Styling the content inside the tooltip */
+        .lore-tooltip img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            margin-top: 15px;
+            top:0px;
+            
+            /* 1. The Base Radius */
+            border-radius: 55px;
+
+            /* 3. Extra Polish */
+            border: 1px solid rgba(167, 139, 250, 0.2);
+        }
+
+        .lore-tooltip-desc {
+            font-size: 11px;
+            color: #cbd5e1;
+            line-height: 1.4;
+            font-style: italic;
+        }
+
+        /* 4. The "Cool" Decoration: A glowing corner accent */
+        .lore-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: 15px;
+            height: 15px;
+            border-top: 2px solid #a78bfa;
+            border-left: 2px solid #a78bfa;
+            border-radius: 4px 0 0 0;
+        }
+
+        /* The container for the hidden link */
+        .hidden-trigger {
+            opacity: 0;
+            cursor: help;
+            transition: opacity 0.2s;
+            /* This ensures it still takes up space so you can find it */
+            display: inline-block; 
+            min-width: 10px;
+        }
+
+        /* When you find the ghost link, show the tooltip */
+        .hidden-trigger:hover .lore-tooltip {
+            opacity: 1 !important;
+            transform: translateX(-50%) scale(1);
+            pointer-events: auto;
+        }
+
+        /* Optional: show a faint glow so the user knows they found a secret */
+        .hidden-trigger:hover {
+            opacity: 1;
+        }
+
+        /* Change .card to .card-nexus to match your JS output */
+        .card-nexus.silenced {
+            filter: grayscale(100%) brightness(0.7) !important;
+            border-color: #64748b !important;
+            transition: all 0.3s ease;
+            position: relative; /* Ensures the overlay stays inside the card */
+        }
+
+        /* Update the overlay selector as well */
+        .card-nexus.silenced::after {
+            content: '🚫';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            opacity: 0.8;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Invincible Status Effect */
+        .card-nexus.is-invincible {
+            border-color: #ffd700 !important; /* Bright Gold */
+            box-shadow: 0 0 20px #ffd700, inset 0 0 10px rgba(255, 215, 0, 0.5);
+            filter: brightness(1.1) contrast(1.1);
+            transform: scale(1.02);
+            z-index: 10;
+        }
+
+        /* Shimmering shine animation */
+        .card-nexus.is-invincible::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(
+                45deg, 
+                transparent 40%, 
+                rgba(255, 255, 255, 0.6) 50%, 
+                transparent 60%
+            );
+            background-size: 200% 200%;
+            animation: divine-shimmer 2s infinite linear;
+            pointer-events: none;
+            border-radius: inherit;
+        }
+
+        @keyframes divine-shimmer {
+            0% { background-position: -150% -150%; }
+            100% { background-position: 150% 150%; }
+        }
+
+        @keyframes float-up-fade {
+            0%   { transform: translateY(0)  scale(1);    opacity: 1; }
+            60%  { transform: translateY(-52px) scale(1.15); opacity: 1; }
+            100% { transform: translateY(-80px) scale(0.9);  opacity: 0; }
+        }
+
+        .dmg-popup {
+            position: fixed;          /* fixed so it sits over everything */
+            pointer-events: none;
+            z-index: 99999;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 900;
+            font-size: 1.5rem;
+            line-height: 1;
+            animation: float-up-fade 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 20px currentColor;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        .dmg-popup.dmg  { color: #f87171; }   /* red   – damage    */
+        .dmg-popup.heal { color: #4ade80; }   /* green – heal      */
+        .dmg-popup.mana { color: #818cf8; }   /* indigo – mana     */
+        .dmg-popup.buff { color: #fbbf24; }   /* gold  – buff/ability */
+        .dmg-popup.big  { font-size: 2.25rem; } /* Crits / high damage */
+
+
+        /* ── 2. SCREEN SHAKE (nexus hit) ─────────────────────────── */
+        @keyframes arena-shake {
+            0%, 100% { transform: translate(0,0) rotate(0deg); }
+            15%       { transform: translate(-6px, 3px) rotate(-0.4deg); }
+            30%       { transform: translate(6px, -4px) rotate(0.4deg); }
+            45%       { transform: translate(-5px, 5px) rotate(-0.3deg); }
+            60%       { transform: translate(4px, -2px) rotate(0.2deg); }
+            75%       { transform: translate(-2px, 3px) rotate(-0.1deg); }
+        }
+
+        #screen-arena.arena-shake {
+            animation: arena-shake 0.45s ease-out forwards;
+        }
+
+
+        /* ── 3. CARD DEATH ANIMATION ─────────────────────────────── */
+        @keyframes card-death {
+            0%   { transform: scale(1)    rotate(0deg);   opacity: 1; filter: brightness(1); }
+            25%  { transform: scale(1.15) rotate(-6deg);  opacity: 1; filter: brightness(3) saturate(0); }
+            60%  { transform: scale(0.7)  rotate(12deg);  opacity: 0.4; filter: brightness(0.3) grayscale(1); }
+            100% { transform: scale(0)    rotate(20deg);  opacity: 0; }
+        }
+
+        .card-nexus.is-dying {
+            animation: card-death 0.55s cubic-bezier(0.55, 0, 1, 0.45) forwards !important;
+            pointer-events: none;
+            z-index: 200 !important;
+        }
+
+
+        /* ── 4. CARD PLAY / SUMMON ANIMATION ─────────────────────── */
+        @keyframes card-summon {
+            0%   { transform: translateY(40px) scale(0.7); opacity: 0; filter: brightness(3); }
+            50%  { transform: translateY(-8px) scale(1.08); opacity: 1; filter: brightness(1.4); }
+            100% { transform: translateY(0)   scale(1);   opacity: 1; filter: brightness(1); }
+        }
+
+        .card-nexus.is-summoning {
+            animation: card-summon 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+
+        /* ── 5. TURN BANNER OVERLAY ──────────────────────────────── */
+        #turn-banner {
+            position: fixed;
+            /* Use top/left/width to bypass any container constraints */
+            top: 0;
+            left: 0;
+            width: 100vw; 
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50000;
+            pointer-events: none;
+            perspective: 800px;
+            /* Remove inset: 0; if it causes issues with 'width: 100vw' */
+        }
+
+        @keyframes banner-in-out {
+            0%   { opacity: 0; transform: scaleX(0.1) rotateX(40deg); }
+            20%  { opacity: 1; transform: scaleX(1)   rotateX(0deg);  }
+            70%  { opacity: 1; transform: scaleX(1)   rotateX(0deg);  }
+            100% { opacity: 0; transform: scaleX(1.05) rotateX(-20deg) translateY(-40px); }
+        }
+
+        .turn-banner-inner {
+            /* Ensure the background strip stretches to the screen edges */
+            width: 100%; 
+            text-align: center;
+            padding: 24px 0; /* Vertical padding only, let width handle horizontal */
+            
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 900;
+            font-size: 3rem; /* Slightly larger for impact */
+            text-transform: uppercase;
+            letter-spacing: 0.25em;
+            border-top: 3px solid;
+            border-bottom: 3px solid;
+            animation: banner-in-out 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            text-shadow: 0 0 30px currentColor;
+            backdrop-filter: blur(4px);
+        }
+
+        .turn-banner-inner.player {
+            color: #818cf8;
+            border-color: #6366f1;
+            background: linear-gradient(90deg, transparent, rgba(99,102,241,0.18), transparent);
+            box-shadow: 0 0 60px rgba(99,102,241,0.35);
+        }
+
+        .turn-banner-inner.enemy {
+            color: #f87171;
+            border-color: #ef4444;
+            background: linear-gradient(90deg, transparent, rgba(239,68,68,0.18), transparent);
+            box-shadow: 0 0 60px rgba(239,68,68,0.35);
+        }
+
+
+        /* ── 6. VICTORY / DEFEAT MODAL ───────────────────────────── */
+        #end-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 60000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            animation: fade-in 0.4s ease forwards;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        @keyframes modal-pop {
+            0%   { transform: scale(0.6) translateY(60px); opacity: 0; }
+            70%  { transform: scale(1.04) translateY(-4px); opacity: 1; }
+            100% { transform: scale(1) translateY(0);       opacity: 1; }
+        }
+
+        .end-modal-box {
+            width: 420px;
+            padding: 48px 40px 40px;
+            border-radius: 24px;
+            text-align: center;
+            animation: modal-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .end-modal-box.victory {
+            background: linear-gradient(145deg, #0f172a, #1e1b4b);
+            border: 2px solid #6366f1;
+            box-shadow: 0 0 80px rgba(99,102,241,0.4), 0 40px 60px rgba(0,0,0,0.6);
+        }
+
+        .end-modal-box.defeat {
+            background: linear-gradient(145deg, #0f0a0a, #2d0a0a);
+            border: 2px solid #ef4444;
+            box-shadow: 0 0 80px rgba(239,68,68,0.3), 0 40px 60px rgba(0,0,0,0.6);
+        }
+
+        .end-modal-box .end-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 900;
+            font-size: 3.5rem;
+            line-height: 1;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .end-modal-box.victory .end-title { color: #a5b4fc; }
+        .end-modal-box.defeat  .end-title { color: #f87171; }
+
+        .end-modal-box .end-sub {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            opacity: 0.5;
+            margin-bottom: 32px;
+        }
+
+        .end-modal-btn {
+            display: inline-block;
+            padding: 14px 40px;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            border: none;
+        }
+        .end-modal-btn:hover  { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+        .end-modal-btn:active { transform: scale(0.96); }
+
+        .end-modal-box.victory .end-modal-btn {
+            background: #6366f1;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+        }
+        .end-modal-box.defeat .end-modal-btn {
+            background: #ef4444;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(239,68,68,0.4);
+        }
+
+        /* Shimmering background effect inside the modal */
+        .end-modal-box::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.04) 50%, transparent 60%);
+            background-size: 300% 300%;
+            animation: divine-shimmer 3s infinite linear;
+            pointer-events: none;
+        }
+
+
+        /* ── 7. IMPACT BURST PARTICLE ────────────────────────────── */
+        @keyframes burst-particle {
+            0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--px), var(--py)) scale(0); opacity: 0; }
+        }
+
+        .impact-particle {
+            position: fixed;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 99998;
+            animation: burst-particle 0.5s ease-out forwards;
+        }
+
+
+        /* ── 8. HAND CARD FAN ARC ────────────────────────────────── */
+        /*
+        Cards in #player-hand now fan out in a gentle arc.
+        Each card gets a --fan-i CSS variable (set in JS) from 0..N-1.
+        The JS also sets --fan-n = total cards.
+        */
+        #player-hand {
+            align-items: flex-end;   /* anchor to bottom so arc fans up */
+            padding-bottom: 0px;
+        }
+
+        #player-hand .card-nexus {
+            --mid:    calc((var(--fan-n, 1) - 1) / 2);
+            --offset: calc(var(--fan-i, 0) - var(--mid));
+            transform-origin: center bottom;
+            transform:
+                rotate(calc(var(--offset) * 4deg))
+                translateY(calc(abs(var(--offset)) * 6px));
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.2s ease,
+                        z-index 0s;
+            margin: 0 -6px;   /* slight overlap between cards */
+        }
+
+        /* Hover pops individual card up out of the fan */
+        #player-hand .card-nexus:hover {
+            transform: rotate(0deg) translateY(-24px) scale(1.12) !important;
+            z-index: 1000 !important;
+            box-shadow: 0 28px 48px rgba(0,0,0,0.7), 0 0 30px rgba(99,102,241,0.4);
+            margin: 0 2px;
+        }
+
+
+        /* ── 9. NEXUS HIT FLASH ──────────────────────────────────── */
+        @keyframes nexus-flash-red {
+            0%   { box-shadow: none; }
+            20%  { box-shadow: inset 0 0 60px rgba(239, 68, 68, 0.7), 0 0 40px rgba(239,68,68,0.5); }
+            100% { box-shadow: none; }
+        }
+        @keyframes nexus-flash-indigo {
+            0%   { box-shadow: none; }
+            20%  { box-shadow: inset 0 0 60px rgba(99, 102, 241, 0.7), 0 0 40px rgba(99,102,241,0.5); }
+            100% { box-shadow: none; }
+        }
+
+        #screen-arena.flash-red    { animation: nexus-flash-red    0.4s ease-out forwards; }
+        #screen-arena.flash-indigo { animation: nexus-flash-indigo 0.4s ease-out forwards; }
+
+
+        /* ── 10. CARD ATTACK READY PULSE ─────────────────────────── */
+        /*
+        Cards that are ready to attack (not exhausted, not silenced) on the
+        player's board get a subtle pulsing border so the player knows what
+        they can use.  Add class "ready-to-attack" in JS after updateBattleUI.
+        */
+        @keyframes ready-pulse {
+            0%, 100% { box-shadow: 0 0 0  0   rgba(99, 102, 241, 0); }
+            50%       { box-shadow: 0 0 14px 4px rgba(99, 102, 241, 0.45); }
+        }
+
+        .card-nexus.ready-to-attack {
+            animation: ready-pulse 1.8s ease-in-out infinite;
+            border-color: rgba(99,102,241,0.6) !important;
+        }
+
+        /* Suppress ready-pulse while another animation is running */
+        .card-nexus.animate-slam-up.ready-to-attack,
+        .card-nexus.animate-hit-flicker.ready-to-attack {
+            animation: none;
+        }
+
+        /* ============================================================
+        MIKU.BATTLE.GG — VN LOG + DIALOGUE REDESIGN
+        Paste at the END of style.css (after style-additions.css)
+        ============================================================ */
+
+        /* ── 1. REMOVE OLD TICKER ────────────────────────────────── */
+        .ticker-container { display: none !important; }
+
+        /* ── 2. BATTLE LOG PANEL ─────────────────────────────────── */
+        #battle-log {
+            position: fixed;
+            left: 0;
+            top: 80px;          /* below header */
+            bottom: 0;
+            width: 260px;
+            background: linear-gradient(180deg, rgba(10,9,15,0.97) 0%, rgba(19,17,28,0.97) 100%);
+            border-right: 1px solid rgba(255,255,255,0.06);
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+            overflow: hidden;
+            /* Slide in from left when arena is active */
+            transform: translateX(-100%);
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        body.arena-active #battle-log {
+            transform: translateX(0);
+        }
+
+        /* Push the log right of the collapsed sidebar */
+        #sidebar.collapsed ~ * #battle-log,
+        .sidebar-collapsed #battle-log {
+            left: 4.75rem;
+        }
+
+        #battle-log-header {
+            padding: 10px 14px 8px;
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: rgba(165, 180, 252, 0.5);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #battle-log-header::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #6366f1;
+            box-shadow: 0 0 8px #6366f1;
+            animation: log-blink 2s ease-in-out infinite;
+        }
+
+        @keyframes log-blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+
+        #battle-log-entries {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 8px 0;
+            display: flex;
+            flex-direction: column-reverse; /* newest at bottom */
+            scrollbar-width: none;
+        }
+        #battle-log-entries::-webkit-scrollbar { display: none; }
+
+        /* Individual log entry */
+        .log-entry {
+            padding: 5px 14px;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.5;
+            color: rgba(248, 250, 252, 0.55);
+            border-left: 2px solid transparent;
+            animation: log-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            opacity: 0;
+            transform: translateX(-8px);
+        }
+
+        @keyframes log-slide-in {
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Colour-coded by type */
+        .log-entry.type-dmg    { border-color: #ef4444; color: #fca5a5; }
+        .log-entry.type-heal   { border-color: #22c55e; color: #86efac; }
+        .log-entry.type-deploy { border-color: #6366f1; color: #a5b4fc; }
+        .log-entry.type-system { border-color: #f59e0b; color: #fcd34d; font-weight: 800; letter-spacing: 0.05em; }
+        .log-entry.type-death  { border-color: #9333ea; color: #d8b4fe; font-style: italic; }
+        .log-entry.type-info   { border-color: rgba(255,255,255,0.1); }
+
+        .log-entry .log-tag {
+            display: inline-block;
+            font-size: 8px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            opacity: 0.6;
+            margin-right: 4px;
+        }
+
+        /* ── 3. REDESIGNED VN DIALOGUE BOX ──────────────────────── */
+
+        /* Remove old styles */
+        #vn-dialogue {
+            all: unset !important;
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 260px !important;   /* right of log panel */
+            right: 0 !important;
+            height: 160px !important;
+            z-index: 10000 !important;
+            display: flex !important;
+            align-items: stretch !important;
+            pointer-events: auto !important;
+            transform: translateY(100%) !important;
+            transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1) !important;
+        }
+
+        #vn-dialogue.vn-visible {
+            transform: translateY(0) !important;
+        }
+
+        /* Hidden state kept for JS compat — use vn-visible instead */
+        #vn-dialogue.hidden { transform: translateY(100%) !important; }
+
+        /* Dark scanline background */
+        #vn-dialogue::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0,0,0,0.08) 2px,
+                    rgba(0,0,0,0.08) 4px
+                ),
+                linear-gradient(180deg, rgba(13,11,22,0.97) 0%, rgba(8,6,16,0.99) 100%);
+            border-top: 2px solid rgba(99,102,241,0.4);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Portrait slot */
+        #vn-portrait {
+            position: relative;
+            z-index: 1;
+            width: 140px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            overflow: hidden;
+            border-right: 1px solid rgba(99,102,241,0.2);
+            background: linear-gradient(135deg, rgba(99,102,241,0.08), transparent);
+        }
+
+        #vn-portrait img {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 2px solid rgba(99,102,241,0.4);
+            margin-bottom: 10px;
+            box-shadow: 0 0 20px rgba(99,102,241,0.3);
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.8));
+        }
+
+        #vn-portrait .portrait-fallback {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(99,102,241,0.15);
+            border: 2px solid rgba(99,102,241,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        /* Text area */
+        #vn-text-area {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 16px 24px 16px 20px;
+            gap: 8px;
+        }
+
+        /* Speaker nameplate */
+        #vn-speaker {
+            all: unset !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-size: 11px !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.15em !important;
+            text-transform: uppercase !important;
+            color: #a5b4fc !important;
+        }
+
+        #vn-speaker::before {
+            content: '';
+            display: block;
+            width: 20px; height: 2px;
+            background: #6366f1;
+        }
+
+        #vn-speaker::after {
+            content: '';
+            display: block;
+            width: 4px; height: 4px;
+            border-radius: 50%;
+            background: #6366f1;
+            box-shadow: 0 0 6px #6366f1;
+        }
+
+        /* Dialogue text */
+        #vn-text {
+            all: unset !important;
+            display: block !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-size: 15px !important;
+            font-weight: 500 !important;
+            color: rgba(248, 250, 252, 0.92) !important;
+            line-height: 1.6 !important;
+            min-height: 52px !important;
+        }
+
+        /* Cursor blink at end of text */
+        #vn-cursor {
+            display: inline-block;
+            width: 2px; height: 14px;
+            background: #a5b4fc;
+            margin-left: 2px;
+            vertical-align: middle;
+            animation: cursor-blink 0.8s step-end infinite;
+        }
+
+        @keyframes cursor-blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0; }
+        }
+
+        /* Click-to-continue hint */
+        #vn-continue {
+            position: absolute;
+            bottom: 10px;
+            right: 20px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(165, 180, 252, 0.4);
+            animation: vn-continue-pulse 1.5s ease-in-out infinite;
+            z-index: 1;
+        }
+
+        @keyframes vn-continue-pulse {
+            0%, 100% { opacity: 0.4; transform: translateY(0); }
+            50%       { opacity: 0.9; transform: translateY(-2px); }
+        }
+
+        /* Side accent bar */
+        #vn-dialogue::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, #6366f1, #a855f7);
+            z-index: 2;
+        }
+
+        /* Ensure hand doesn't get hidden behind log panel */
+        body.arena-active #player-hand {
+            padding-left: 270px;
+        }
+
+        /* On mobile: hide log, full-width dialogue */
+        @media (max-width: 768px) {
+            #battle-log { display: none !important; }
+            #vn-dialogue { left: 0 !important; }
+            body.arena-active #player-hand { padding-left: 0; }
+        }
+
+        /* ══════════════════════════════════════════════════════════
+           RANK ANIMATIONS — Rank badge glow + idle shimmer per rank
+           ══════════════════════════════════════════════════════════ */
+
+        /* Rank badge base */
+        .rank-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            z-index: 30;
+            border: 2px solid rgba(255,255,255,0.15);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        /* Rank colours */
+        .rank-D  { background: #374151; color: #9ca3af; }
+        .rank-C  { background: #065f46; color: #6ee7b7; }
+        .rank-B  { background: #1e3a8a; color: #93c5fd; }
+        .rank-A  { background: #4c1d95; color: #c4b5fd; }
+        .rank-S  { background: #7c2d12; color: #fbbf24; }
+        .rank-SS { background: #1a0533; color: #f0abfc; font-size: 7px; }
+
+        /* Idle glows per rank */
+        @keyframes rank-glow-C {
+            0%,100% { box-shadow: 0 0 4px  2px rgba(52,211,153,0.4); }
+            50%      { box-shadow: 0 0 10px 4px rgba(52,211,153,0.7); }
+        }
+        @keyframes rank-glow-B {
+            0%,100% { box-shadow: 0 0 4px  2px rgba(96,165,250,0.4); }
+            50%      { box-shadow: 0 0 12px 5px rgba(96,165,250,0.7); }
+        }
+        @keyframes rank-glow-A {
+            0%,100% { box-shadow: 0 0 6px  3px rgba(167,139,250,0.5); }
+            50%      { box-shadow: 0 0 16px 6px rgba(167,139,250,0.8); }
+        }
+        @keyframes rank-glow-S {
+            0%,100% { box-shadow: 0 0 8px  4px rgba(251,191,36,0.5); }
+            50%      { box-shadow: 0 0 22px 8px rgba(251,191,36,0.9); }
+        }
+        @keyframes rank-glow-SS {
+            0%   { box-shadow: 0 0 10px 5px rgba(240,171,252,0.6); }
+            33%  { box-shadow: 0 0 24px 10px rgba(251,191,36,0.8); }
+            66%  { box-shadow: 0 0 20px 8px rgba(167,139,250,0.8); }
+            100% { box-shadow: 0 0 10px 5px rgba(240,171,252,0.6); }
+        }
+
+        .rank-C.rank-badge  { animation: rank-glow-C  2.4s ease-in-out infinite; }
+        .rank-B.rank-badge  { animation: rank-glow-B  2.2s ease-in-out infinite; }
+        .rank-A.rank-badge  { animation: rank-glow-A  2s   ease-in-out infinite; }
+        .rank-S.rank-badge  { animation: rank-glow-S  1.6s ease-in-out infinite; }
+        .rank-SS.rank-badge { animation: rank-glow-SS 2.4s linear      infinite; }
+
+        /* Card border tint by rank when on board */
+        .slot > .card-nexus[data-rank="C"]  { border-color: rgba(52,211,153,0.5) !important; }
+        .slot > .card-nexus[data-rank="B"]  { border-color: rgba(96,165,250,0.5) !important; }
+        .slot > .card-nexus[data-rank="A"]  { border-color: rgba(167,139,250,0.55) !important; }
+        .slot > .card-nexus[data-rank="S"]  { border-color: rgba(251,191,36,0.6)  !important; }
+        .slot > .card-nexus[data-rank="SS"] {
+            border-color: rgba(240,171,252,0.7) !important;
+            animation: ss-card-border 3s linear infinite !important;
+        }
+
+        @keyframes ss-card-border {
+            0%   { border-color: rgba(240,171,252,0.8); box-shadow: 0 0 12px rgba(240,171,252,0.4); }
+            33%  { border-color: rgba(251,191,36,0.8);  box-shadow: 0 0 18px rgba(251,191,36,0.5); }
+            66%  { border-color: rgba(167,139,250,0.8); box-shadow: 0 0 15px rgba(167,139,250,0.5); }
+            100% { border-color: rgba(240,171,252,0.8); box-shadow: 0 0 12px rgba(240,171,252,0.4); }
+        }
+
+        /* ── RANK SUMMON ANIMATIONS ─────────────────────────────── */
+        @keyframes summon-C {
+            0%   { transform: translateY(30px) scale(0.8); opacity: 0; filter: brightness(2) hue-rotate(120deg); }
+            60%  { transform: translateY(-6px) scale(1.06); opacity: 1; filter: brightness(1.3); }
+            100% { transform: translateY(0) scale(1); filter: brightness(1); }
+        }
+        @keyframes summon-B {
+            0%   { transform: translateY(40px) scale(0.75); opacity: 0; filter: brightness(3) hue-rotate(200deg); }
+            50%  { transform: translateY(-10px) scale(1.1); opacity: 1; filter: brightness(1.5) drop-shadow(0 0 12px #60a5fa); }
+            100% { transform: translateY(0) scale(1); filter: brightness(1); }
+        }
+        @keyframes summon-A {
+            0%   { transform: scale(0.5) rotate(-8deg); opacity: 0; filter: brightness(4) hue-rotate(270deg); }
+            40%  { transform: scale(1.15) rotate(3deg); opacity: 1; filter: brightness(2) drop-shadow(0 0 18px #a78bfa); }
+            70%  { transform: scale(0.97) rotate(-1deg); }
+            100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+        }
+        @keyframes summon-S {
+            0%   { transform: scale(0.3) rotate(12deg); opacity: 0; filter: brightness(6) sepia(1); }
+            30%  { transform: scale(1.25) rotate(-4deg); opacity: 1; filter: brightness(3) drop-shadow(0 0 30px #fbbf24); }
+            60%  { transform: scale(0.95) rotate(1deg); filter: brightness(1.5); }
+            100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+        }
+        @keyframes summon-SS {
+            0%   { transform: scale(0) rotate(0deg); opacity: 0; filter: brightness(10); }
+            20%  { transform: scale(1.4) rotate(180deg); opacity: 1; filter: brightness(5) drop-shadow(0 0 40px #f0abfc); }
+            50%  { transform: scale(0.9) rotate(355deg); filter: brightness(2); }
+            75%  { transform: scale(1.05) rotate(360deg); }
+            100% { transform: scale(1) rotate(360deg); filter: brightness(1); }
+        }
+
+        .card-nexus.summon-C  { animation: summon-C  0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .card-nexus.summon-B  { animation: summon-B  0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .card-nexus.summon-A  { animation: summon-A  0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .card-nexus.summon-S  { animation: summon-S  0.9s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .card-nexus.summon-SS { animation: summon-SS 1.1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+
+        /* ══════════════════════════════════════════════════════════
+           VN DIALOGUE — EMOTION VARIANTS
+           Add class to #vn-dialogue: vn-emotion-angry, vn-emotion-excited,
+           vn-emotion-sad, vn-emotion-smug, vn-emotion-fear, vn-emotion-taunt
+           ══════════════════════════════════════════════════════════ */
+
+        /* Base text overrides per emotion */
+        #vn-dialogue.vn-emotion-angry #vn-text {
+            color: #fca5a5 !important;
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.04em !important;
+            text-shadow: 0 0 12px rgba(239,68,68,0.6);
+        }
+        #vn-dialogue.vn-emotion-angry #vn-speaker {
+            color: #f87171 !important;
+        }
+        #vn-dialogue.vn-emotion-angry::before {
+            border-top-color: rgba(239,68,68,0.6) !important;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px),
+                linear-gradient(180deg, rgba(30,5,5,0.97) 0%, rgba(20,3,3,0.99) 100%) !important;
+        }
+        #vn-dialogue.vn-emotion-angry::after {
+            background: linear-gradient(180deg, #ef4444, #7f1d1d) !important;
+        }
+        @keyframes vn-shake-angry {
+            0%,100% { transform: translateY(0) translateX(0); }
+            20%     { transform: translateY(0) translateX(-3px); }
+            40%     { transform: translateY(0) translateX(3px); }
+            60%     { transform: translateY(0) translateX(-2px); }
+            80%     { transform: translateY(0) translateX(2px); }
+        }
+        #vn-dialogue.vn-emotion-angry { animation: vn-shake-angry 0.4s ease-in-out; }
+
+        #vn-dialogue.vn-emotion-excited #vn-text {
+            color: #fde68a !important;
+            font-size: 17px !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.06em !important;
+            text-shadow: 0 0 14px rgba(251,191,36,0.5);
+        }
+        #vn-dialogue.vn-emotion-excited #vn-speaker { color: #fbbf24 !important; }
+        #vn-dialogue.vn-emotion-excited::before {
+            border-top-color: rgba(251,191,36,0.5) !important;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px),
+                linear-gradient(180deg, rgba(20,16,5,0.97) 0%, rgba(12,9,2,0.99) 100%) !important;
+        }
+        #vn-dialogue.vn-emotion-excited::after {
+            background: linear-gradient(180deg, #fbbf24, #d97706) !important;
+        }
+        @keyframes vn-bounce-excited {
+            0%,100% { transform: translateY(0); }
+            30%     { transform: translateY(-4px); }
+            60%     { transform: translateY(-2px); }
+        }
+        #vn-dialogue.vn-emotion-excited { animation: vn-bounce-excited 0.5s ease-in-out; }
+
+        #vn-dialogue.vn-emotion-sad #vn-text {
+            color: #bfdbfe !important;
+            font-size: 14px !important;
+            font-weight: 400 !important;
+            font-style: italic !important;
+            opacity: 0.85;
+        }
+        #vn-dialogue.vn-emotion-sad #vn-speaker { color: #7dd3fc !important; }
+        #vn-dialogue.vn-emotion-sad::before {
+            border-top-color: rgba(56,189,248,0.3) !important;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px),
+                linear-gradient(180deg, rgba(3,10,25,0.98) 0%, rgba(2,6,18,0.99) 100%) !important;
+        }
+        #vn-dialogue.vn-emotion-sad::after {
+            background: linear-gradient(180deg, #38bdf8, #0369a1) !important;
+        }
+        @keyframes vn-droop-sad {
+            0%   { transform: translateY(100%); }
+            100% { transform: translateY(0); }
+        }
+
+        #vn-dialogue.vn-emotion-smug #vn-text {
+            color: #d9f99d !important;
+            font-size: 15px !important;
+            font-weight: 600 !important;
+            font-style: italic;
+            letter-spacing: 0.02em;
+        }
+        #vn-dialogue.vn-emotion-smug #vn-speaker { color: #a3e635 !important; }
+        #vn-dialogue.vn-emotion-smug::before {
+            border-top-color: rgba(132,204,22,0.4) !important;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px),
+                linear-gradient(180deg, rgba(8,15,5,0.97) 0%, rgba(5,10,3,0.99) 100%) !important;
+        }
+        #vn-dialogue.vn-emotion-smug::after {
+            background: linear-gradient(180deg, #84cc16, #365314) !important;
+        }
+
+        #vn-dialogue.vn-emotion-taunt #vn-text {
+            color: #fda4af !important;
+            font-size: 18px !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.08em !important;
+            text-transform: uppercase !important;
+            text-shadow: 0 0 20px rgba(244,63,94,0.7), 0 2px 4px rgba(0,0,0,0.8);
+        }
+        #vn-dialogue.vn-emotion-taunt #vn-speaker {
+            color: #fb7185 !important;
+            font-size: 13px !important;
+        }
+        #vn-dialogue.vn-emotion-taunt::before {
+            border-top-color: rgba(244,63,94,0.7) !important;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px),
+                linear-gradient(180deg, rgba(30,3,10,0.98) 0%, rgba(20,2,7,0.99) 100%) !important;
+        }
+        #vn-dialogue.vn-emotion-taunt::after {
+            background: linear-gradient(180deg, #f43f5e, #9f1239) !important;
+            width: 5px !important;
+        }
+        @keyframes vn-pulse-taunt {
+            0%,100% { transform: translateY(0) scale(1); }
+            50%     { transform: translateY(-3px) scale(1.003); }
+        }
+        #vn-dialogue.vn-emotion-taunt { animation: vn-pulse-taunt 0.8s ease-in-out infinite; }
+
+        #vn-dialogue.vn-emotion-fear #vn-text {
+            color: #e9d5ff !important;
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            opacity: 0.8;
+        }
+        #vn-dialogue.vn-emotion-fear #vn-speaker { color: #c084fc !important; }
+        #vn-dialogue.vn-emotion-fear::before {
+            border-top-color: rgba(168,85,247,0.4) !important;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px),
+                linear-gradient(180deg, rgba(10,5,20,0.98) 0%, rgba(7,3,15,0.99) 100%) !important;
+        }
+        #vn-dialogue.vn-emotion-fear::after {
+            background: linear-gradient(180deg, #a855f7, #581c87) !important;
+        }
+        @keyframes vn-tremble-fear {
+            0%,100% { transform: translateY(0) translateX(0); }
+            25%     { transform: translateY(-1px) translateX(-1px); }
+            50%     { transform: translateY(1px) translateX(1px); }
+            75%     { transform: translateY(-1px) translateX(1px); }
+        }
+        #vn-dialogue.vn-emotion-fear { animation: vn-tremble-fear 0.15s linear infinite; }

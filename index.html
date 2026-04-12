@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>miku.battle.gg</title>
+    <link rel="icon" href="https://miku.gg/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="stylesheet" href="player.css">
+</head>
+<body class="flex">
+
+    <!-- ══════════════════════════════════════════
+         DAILY REWARD POPUP
+         ══════════════════════════════════════════ -->
+    <div id="daily-reward-overlay">
+        <div id="daily-reward-box">
+            <span class="daily-reward-coin">🪙</span>
+            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.15em;color:rgba(255,255,255,0.4);margin-bottom:8px;">Daily Reward</div>
+            <div class="daily-points-amount" id="daily-points-display">+30</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.5);margin:8px 0 28px;font-weight:600;">Points Earned</div>
+            <button onclick="closeDailyReward()" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;padding:12px 36px;border-radius:12px;font-weight:900;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;border:none;cursor:pointer;transition:all 0.2s ease;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">Claim Reward</button>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         BATTLE RESULT OVERLAY
+         ══════════════════════════════════════════ -->
+    <div id="battle-result-overlay" style="
+        position:fixed;inset:0;z-index:72000;
+        background:rgba(0,0,0,0.85);backdrop-filter:blur(14px);
+        display:flex;align-items:center;justify-content:center;
+        opacity:0;pointer-events:none;transition:opacity 0.4s ease;">
+        <div id="battle-result-box" style="
+            background:linear-gradient(145deg,#0f172a,#1a0a2e);
+            border-radius:32px;padding:52px 48px;text-align:center;width:380px;
+            box-shadow:0 0 80px rgba(99,102,241,0.3),0 40px 60px rgba(0,0,0,0.8);
+            animation:modal-pop 0.5s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+            position:relative;overflow:hidden;">
+            <div id="battle-result-icon" style="font-size:72px;margin-bottom:16px;display:block;"></div>
+            <div id="battle-result-title" style="font-size:36px;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em;line-height:1;margin-bottom:8px;"></div>
+            <div id="battle-result-sub" style="font-size:13px;color:rgba(255,255,255,0.45);font-weight:600;margin-bottom:32px;"></div>
+            <div style="display:flex;gap:16px;justify-content:center;margin-bottom:32px;">
+                <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px 24px;text-align:center;">
+                    <div id="battle-result-pts" style="font-size:32px;font-weight:900;color:#fbbf24;line-height:1;"></div>
+                    <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:rgba(255,255,255,0.3);margin-top:4px;">Points</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px 24px;text-align:center;">
+                    <div id="battle-result-record" style="font-size:32px;font-weight:900;color:#a5b4fc;line-height:1;"></div>
+                    <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:rgba(255,255,255,0.3);margin-top:4px;">Record</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center;">
+                <button onclick="closeBattleResult(false)" style="
+                    background:linear-gradient(135deg,#4f46e5,#6366f1);color:white;
+                    padding:14px 28px;border-radius:14px;font-weight:900;font-size:12px;
+                    text-transform:uppercase;letter-spacing:0.1em;border:none;cursor:pointer;
+                    transition:all 0.2s ease;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+                    🏠 Lobby
+                </button>
+                <button onclick="closeBattleResult(true)" style="
+                    background:rgba(255,255,255,0.07);color:white;
+                    padding:14px 28px;border-radius:14px;font-weight:900;font-size:12px;
+                    text-transform:uppercase;letter-spacing:0.1em;border:1px solid rgba(255,255,255,0.12);cursor:pointer;
+                    transition:all 0.2s ease;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">
+                    ⚔️ Rematch
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         POINTS TOAST
+         ══════════════════════════════════════════ -->
+    <div id="points-toast" style="
+        position:fixed;top:88px;right:24px;z-index:73000;
+        background:linear-gradient(135deg,#1e1b4b,#312e81);
+        border:1px solid rgba(99,102,241,0.4);border-radius:16px;
+        padding:12px 20px;display:flex;align-items:center;gap:10px;
+        opacity:0;pointer-events:none;transform:translateY(-8px);
+        transition:opacity 0.3s ease,transform 0.3s ease;">
+        <span style="font-size:20px;" id="toast-icon">🪙</span>
+        <div>
+            <div id="toast-title" style="font-size:11px;font-weight:900;color:white;text-transform:uppercase;letter-spacing:0.06em;"></div>
+            <div id="toast-sub" style="font-size:10px;color:rgba(165,180,252,0.7);font-weight:600;"></div>
+        </div>
+    </div>
+    <div id="pack-reveal-overlay">
+        <div style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.2em;color:rgba(165,180,252,0.6);">Pack Opened!</div>
+        <div class="pack-reveal-cards" id="pack-reveal-cards"></div>
+        <button onclick="closePackReveal()" style="background:rgba(255,255,255,0.08);color:white;padding:12px 36px;border-radius:12px;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;border:1px solid rgba(255,255,255,0.1);cursor:pointer;margin-top:8px;" onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">Continue</button>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="fixed top-0 left-0 bottom-0 w-64 flex flex-col border-r border-white/10 bg-[#13111c] z-50">
+        <div class="h-20 flex items-center justify-between px-4 border-b border-white/5">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                    <i data-lucide="layers" class="text-white w-5 h-5"></i>
+                </div>
+                <span class="sidebar-title font-bold text-lg tracking-tighter uppercase italic">miku.battle.gg</span>
+            </div>
+            <button id="sidebar-toggle" onclick="toggleSidebar()" class="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all">
+                <i data-lucide="chevrons-left" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <nav class="py-4 space-y-1 flex-1 overflow-y-auto">
+            <button onclick="showScreen('lobby')" id="btn-lobby" class="nav-btn active w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="home" class="w-4 h-4"></i><span class="nav-text">Lobby</span>
+            </button>
+            <button onclick="showScreen('collection')" id="btn-collection" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="star" class="w-4 h-4"></i><span class="nav-text">My Collection</span>
+            </button>
+            <button onclick="showScreen('deckbuilder')" id="btn-deckbuilder" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="layout-grid" class="w-4 h-4"></i><span class="nav-text">Deck Builder</span>
+            </button>
+            <button onclick="showScreen('packshop')" id="btn-packshop" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="package" class="w-4 h-4"></i><span class="nav-text">Pack Shop</span>
+            </button>
+            <button onclick="showScreen('vault')" id="btn-vault" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="database" class="w-4 h-4"></i><span class="nav-text">Full Vault</span>
+            </button>
+            <button onclick="showScreen('arena')" id="btn-arena" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="swords" class="w-4 h-4"></i><span class="nav-text">Battle Arena</span>
+            </button>
+
+            <div class="pt-6 pb-2 px-6 text-[10px] uppercase font-bold text-slate-600 tracking-widest sidebar-quickstart-text">Quick Start</div>
+            <div class="px-4">
+                <button onclick="startBattle()" class="w-full flex items-center justify-center gap-2 px-4 py-4 text-xs bg-indigo-600 text-white font-black rounded-xl hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20">
+                    <i data-lucide="play" class="w-3 h-3"></i> <span class="nav-text">NEW SESSION</span>
+                </button>
+            </div>
+        </nav>
+
+        <div class="p-6 border-t border-white/5">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="user" class="w-4 h-4 text-indigo-400"></i>
+                </div>
+                <div class="sidebar-user-text flex-1 min-w-0">
+                    <div class="text-[10px] font-bold text-slate-500 uppercase">Commander</div>
+                    <div class="flex items-center gap-1">
+                        <div class="text-xs font-bold truncate" id="sidebar-username">Loading...</div>
+                        <button onclick="editUsername()" title="Edit name" class="text-slate-600 hover:text-indigo-400 transition-colors flex-shrink-0" style="background:none;border:none;cursor:pointer;padding:0 2px;">
+                            <i data-lucide="pencil" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Points in sidebar -->
+            <div class="mt-3 flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                <span class="text-[10px] font-bold text-slate-500 uppercase">Points</span>
+                <span class="text-yellow-400 font-black text-sm" id="sidebar-points">0</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content" class="relative bg-[#0a090f]">
+
+        <!-- HEADER -->
+        <header id="main-header" class="h-20 flex-shrink-0 flex items-center justify-between px-10 border-b border-white/5 bg-[#13111c]/50 backdrop-blur-xl z-20">
+            <button id="mobile-sidebar-toggle" onclick="toggleSidebar()" class="mobile-sidebar-toggle hidden items-center justify-center p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <h1 id="screen-title" class="font-black text-2xl uppercase italic tracking-tighter text-indigo-400">Lobby</h1>
+            <div class="flex items-center gap-6">
+                <!-- Points display -->
+                <div id="header-points">
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Points</span>
+                    <span id="header-points-value" class="text-yellow-400 font-black text-sm">0</span>
+                </div>
+                <div class="h-8 w-[1px] bg-white/10"></div>
+                <!-- Wins -->
+                <div class="flex flex-col items-end">
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Record</span>
+                    <span class="text-green-400 font-black text-sm"><span id="header-wins">0</span>W / <span id="header-losses">0</span>L</span>
+                </div>
+                <div class="h-8 w-[1px] bg-white/10"></div>
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase">Online</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 relative overflow-hidden flex flex-col">
+
+            <!-- ══════════════════════════════════════
+                 LOBBY SCREEN
+                 ══════════════════════════════════════ -->
+            <div id="screen-lobby" class="screen p-10 overflow-y-auto custom-scroll">
+                <div class="max-w-5xl mx-auto space-y-8">
+
+                    <!-- Hero banner -->
+                    <div class="bg-gradient-to-br from-indigo-900/40 to-transparent border border-indigo-500/20 p-14 rounded-[40px] relative overflow-hidden shadow-2xl">
+                        <div class="relative z-10">
+                            <h2 class="text-7xl font-black mb-4 italic tracking-tighter uppercase leading-[0.9]">MIKU<br><span class="text-indigo-500">BATTLE<span class="text-purple-300">.GG</span></span></h2>
+                            <p class="text-slate-400 text-lg max-w-md leading-relaxed mb-8">Collect characters, build your deck, battle to earn packs.</p>
+                            <div class="flex gap-4 flex-wrap">
+                                <button onclick="showScreen('arena')" class="bg-indigo-600 hover:bg-indigo-500 px-8 py-4 rounded-xl font-black text-base transition-all shadow-2xl shadow-indigo-600/20 active:scale-95">⚔️ GO TO ARENA</button>
+                                <button onclick="showScreen('packshop')" class="bg-purple-800/60 hover:bg-purple-700/60 border border-purple-500/30 px-8 py-4 rounded-xl font-black text-base transition-all active:scale-95">📦 OPEN PACKS</button>
+                                <button onclick="showScreen('deckbuilder')" class="bg-white/5 hover:bg-white/10 border border-white/10 px-8 py-4 rounded-xl font-black text-base transition-all active:scale-95">🃏 BUILD DECK</button>
+                            </div>
+                        </div>
+                        <div class="absolute -right-20 -bottom-20 opacity-10">
+                            <i data-lucide="shield" class="w-96 h-96"></i>
+                        </div>
+                    </div>
+
+                    <!-- Stats row -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="stat-chip">
+                            <span class="stat-chip-value text-indigo-400" id="lobby-points">0</span>
+                            <span class="stat-chip-label">Points</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-chip-value text-green-400" id="lobby-wins">0</span>
+                            <span class="stat-chip-label">Wins</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-chip-value text-blue-400" id="lobby-collection-count">0</span>
+                            <span class="stat-chip-label">Cards Owned</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-chip-value text-yellow-400" id="lobby-packs">0</span>
+                            <span class="stat-chip-label">Packs Opened</span>
+                        </div>
+                    </div>
+
+                    <!-- Collection progress bar -->
+                    <div class="bg-white/3 border border-white/8 rounded-2xl p-6">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Collection Progress</div>
+                            <div class="text-xs font-black text-slate-400"><span id="progress-unique">0</span> / <span id="progress-total">?</span> unique cards</div>
+                        </div>
+                        <div class="w-full bg-white/5 rounded-full h-3 overflow-hidden mb-3">
+                            <div id="collection-progress-bar" class="h-full rounded-full transition-all duration-700"
+                                style="width:0%;background:linear-gradient(90deg,#6366f1,#a855f7,#f59e0b);"></div>
+                        </div>
+                        <!-- Per-rarity breakdown -->
+                        <div class="grid grid-cols-5 gap-2" id="rarity-progress-row"></div>
+                    </div>
+
+                    <!-- Active deck + earn info -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Active deck -->
+                        <div class="bg-white/3 border border-white/8 rounded-2xl p-6">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Active Deck</div>
+                            <div id="lobby-deck-info" class="text-slate-400 text-sm">No deck selected.</div>
+                            <button onclick="showScreen('deckbuilder')" class="mt-4 text-indigo-400 text-xs font-bold hover:text-indigo-300 transition-colors">Edit Deck →</button>
+                        </div>
+                        <!-- How to earn -->
+                        <div class="bg-white/3 border border-white/8 rounded-2xl p-6">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Earn Points</div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm"><span class="text-slate-400">🏆 Win a battle</span><span class="text-yellow-400 font-black">+50</span></div>
+                                <div class="flex justify-between text-sm"><span class="text-slate-400">🛡️ Lose a battle</span><span class="text-yellow-400 font-black">+10</span></div>
+                                <div class="flex justify-between text-sm"><span class="text-slate-400">☀️ Daily login</span><span class="text-yellow-400 font-black">+30</span></div>
+                                <div class="flex justify-between text-sm font-black border-t border-white/8 pt-2 mt-2"><span class="text-slate-300">📦 Open a pack</span><span class="text-purple-400">−100</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Save info strip -->
+                    <div class="flex items-center justify-between bg-white/2 border border-white/5 rounded-xl px-5 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-green-400"></div>
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Progress saved to localStorage</span>
+                        </div>
+                        <button onclick="confirmResetSave()" class="text-[10px] font-black uppercase tracking-wider text-red-500/60 hover:text-red-400 transition-colors">Reset Save</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════
+                 MY COLLECTION SCREEN
+                 ══════════════════════════════════════ -->
+            <div id="screen-collection" class="screen hidden-screen p-10 overflow-y-auto custom-scroll">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex items-center justify-between mb-8 flex-wrap gap-4">
+                        <div>
+                            <h2 class="text-4xl font-black italic uppercase tracking-tighter">My Collection</h2>
+                            <p class="text-slate-500 text-sm font-semibold mt-1" id="collection-count-label">0 cards owned</p>
+                        </div>
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <input id="collection-search" type="text" placeholder="Search..." oninput="renderCollection()" class="bg-white/5 border border-white/10 px-4 py-2 rounded-lg text-sm outline-none focus:border-indigo-500 transition-all w-48">
+                            <div id="collection-rarity-filters" class="flex gap-2 flex-wrap">
+                                <button class="collection-filter-btn active" onclick="setCollectionFilter('ALL',this)">All</button>
+                                <button class="collection-filter-btn" onclick="setCollectionFilter('COMMON',this)">Common</button>
+                                <button class="collection-filter-btn" onclick="setCollectionFilter('UNCOMMON',this)">Uncommon</button>
+                                <button class="collection-filter-btn" onclick="setCollectionFilter('RARE',this)">Rare</button>
+                                <button class="collection-filter-btn" onclick="setCollectionFilter('EPIC',this)">Epic</button>
+                                <button class="collection-filter-btn" onclick="setCollectionFilter('LEGENDARY',this)">Legendary</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="collection-toggle" class="flex gap-3 mb-6">
+                        <button class="collection-filter-btn active" id="toggle-owned" onclick="setCollectionOwned('owned', this)">Owned</button>
+                        <button class="collection-filter-btn" id="toggle-all" onclick="setCollectionOwned('all', this)">All Cards</button>
+                    </div>
+                    <div id="collection-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 pb-24"></div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════
+                 DECK BUILDER SCREEN
+                 ══════════════════════════════════════ -->
+            <div id="screen-deckbuilder" class="screen hidden-screen p-10 overflow-y-auto custom-scroll">
+                <div class="max-w-6xl mx-auto">
+                    <div class="flex items-center justify-between mb-8 flex-wrap gap-4">
+                        <div>
+                            <h2 class="text-4xl font-black italic uppercase tracking-tighter">Deck Builder</h2>
+                            <p class="text-slate-500 text-sm font-semibold mt-1">10 cards per deck · built from your collection</p>
+                        </div>
+                        <!-- Deck tabs -->
+                        <div class="flex items-center gap-3 flex-wrap" id="deck-tabs"></div>
+                    </div>
+
+                    <div id="deck-builder-layout">
+                        <!-- Left: deck slots -->
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Deck Slots</div>
+                                <div class="text-sm font-black" id="deck-slot-counter"><span id="deck-filled">0</span> / 10</div>
+                            </div>
+                            <!-- Deck name input -->
+                            <div class="flex gap-3 mb-4">
+                                <input id="deck-name-input" type="text" placeholder="Deck name..." maxlength="24"
+                                    class="flex-1 bg-white/5 border border-white/10 px-4 py-2 rounded-lg text-sm outline-none focus:border-indigo-500 transition-all font-bold">
+                                <button class="deck-save-btn bg-indigo-600 hover:bg-indigo-500 text-white px-6" id="deck-save-btn" onclick="saveDeck()">Save</button>
+                                <button class="deck-save-btn bg-white/5 border border-white/10 text-slate-400 hover:text-white px-4" onclick="setActiveDeck(currentDeckIndex)" title="Set as active deck">✓ Use</button>
+                            </div>
+                            <div class="deck-slot-grid" id="deck-slot-grid"></div>
+                        </div>
+
+                        <!-- Right: card picker -->
+                        <div class="bg-white/3 border border-white/8 rounded-2xl p-5">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Pick From Collection</div>
+                            <input id="deck-search" type="text" placeholder="Filter cards..." oninput="renderDeckPicker()"
+                                class="w-full bg-white/5 border border-white/10 px-3 py-2 rounded-lg text-sm outline-none focus:border-indigo-500 transition-all mb-3">
+                            <div class="pick-card-list custom-scroll" id="deck-picker-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════
+                 PACK SHOP SCREEN
+                 ══════════════════════════════════════ -->
+            <div id="screen-packshop" class="screen hidden-screen p-10 overflow-y-auto custom-scroll">
+                <div class="max-w-6xl mx-auto">
+                    <div class="flex items-center justify-between mb-8 flex-wrap gap-4">
+                        <div>
+                            <h2 class="text-4xl font-black italic uppercase tracking-tighter">Pack Shop</h2>
+                            <p class="text-slate-500 text-sm font-semibold mt-1">5 cards per pack · click a pack image to upload your own art</p>
+                        </div>
+                        <div class="text-sm text-slate-400 font-semibold">You have: <span id="shop-points-display" class="text-yellow-400 font-black text-lg">0</span> pts</div>
+                    </div>
+
+                    <!-- 3-pack grid (rendered by JS) -->
+                    <div id="pack-cards-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                        <img src="packs/common.png" alt="Common" class="pack-img">
+                        <img src="packs/rare.png" alt="Rare" class="pack-img">
+                        <img src="packs/epic.png" alt="epic" class="pack-img">
+                    </div>
+
+                    <!-- History panel -->
+                    <div>
+                        <div class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Recent Pulls</div>
+                        <div id="pack-history" class="space-y-0 max-h-[400px] overflow-y-auto custom-scroll"></div>
+                        <div id="pack-history-empty" class="text-slate-600 text-sm font-semibold text-center py-12">No packs opened yet.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════
+                 VAULT SCREEN (Full roster)
+                 ══════════════════════════════════════ -->
+            <div id="screen-vault" class="screen hidden-screen p-12 overflow-y-auto custom-scroll">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex items-center justify-between mb-10">
+                        <div>
+                            <h2 class="text-4xl font-black italic uppercase tracking-tighter">The Vault</h2>
+                            <p class="text-slate-500 text-sm font-semibold" id="vault-count">Loading...</p>
+                        </div>
+                        <input type="text" placeholder="Search units..." class="bg-white/5 border border-white/10 px-4 py-2 rounded-lg text-sm outline-none focus:border-indigo-500 transition-all w-64">
+                    </div>
+                    <div id="vault-grid" class="pb-24"></div>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════
+                 ARENA SCREEN (unchanged)
+                 ══════════════════════════════════════ -->
+            <div id="screen-arena" class="screen hidden-screen flex flex-col relative overflow-hidden">
+                <div class="h-[35%] flex flex-col items-center justify-center gap-4 pt-2 bg-red-900/5 flex-shrink-0">
+                    <div class="flex items-center gap-10">
+                        <div class="text-center">
+                            <div id="enemy-hp" class="text-4xl font-black text-red-500">30</div>
+                            <div class="text-[8px] opacity-40 font-bold uppercase tracking-widest">Enemy</div>
+                        </div>
+                        <div id="enemy-nexus" class="w-60 h-14 rounded-full border-4 border-red-500/20 flex items-center justify-center bg-red-900/10" ondragover="event.preventDefault()" ondrop="dropOnNexus('enemy')">
+                            <i data-lucide="shield-alert" class="w-6 h-6 text-red-500"></i>
+                        </div>
+                        <div class="text-center">
+                            <div id="enemy-hand-count" class="text-xl font-black text-slate-600">4</div>
+                            <div class="text-[8px] opacity-40 font-bold uppercase tracking-widest">Hand</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <div id="enemy-slot-0" class="slot" data-side="enemy" data-idx="0" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                        <div id="enemy-slot-1" class="slot" data-side="enemy" data-idx="1" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                        <div id="enemy-slot-2" class="slot" data-side="enemy" data-idx="2" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                        <div id="enemy-slot-3" class="slot" data-side="enemy" data-idx="3" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                    </div>
+                </div>
+
+                <div id="battle-log">
+                    <div id="battle-log-header">Battle Log</div>
+                    <div id="battle-log-entries"></div>
+                </div>
+
+                <div id="vn-dialogue">
+                    <div id="vn-portrait"><div class="portrait-fallback">⚔️</div></div>
+                    <div id="vn-text-area">
+                        <div id="vn-speaker">Opponent</div>
+                        <div id="vn-text"></div>
+                    </div>
+                    <div id="vn-continue">▼ Click to continue</div>
+                </div>
+
+                <div class="flex-1 flex flex-col items-center justify-between pb-2">
+                    <div class="flex gap-3 mt-2">
+                        <div id="player-slot-0" class="slot" data-side="player" data-idx="0" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                        <div id="player-slot-1" class="slot" data-side="player" data-idx="1" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                        <div id="player-slot-2" class="slot" data-side="player" data-idx="2" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                        <div id="player-slot-3" class="slot" data-side="player" data-idx="3" ondragover="allowDrop(event)" ondrop="dropOnSlot(event)"></div>
+                    </div>
+
+                    <div class="flex items-center gap-10 bg-[#13111c]/90 border border-white/10 px-8 py-3 rounded-full backdrop-blur-2xl shadow-2xl z-20">
+                        <div class="text-center">
+                            <div id="player-hp" class="text-3xl font-black text-indigo-500">30</div>
+                            <div class="text-[7px] opacity-40 font-bold uppercase tracking-widest">Nexus</div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div id="mana-text" class="text-lg font-black text-indigo-300">1 / 1</div>
+                            <div class="text-[7px] opacity-30 font-black tracking-widest">ENERGY</div>
+                        </div>
+                        <button onclick="endTurn()" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-full font-black text-[10px] transition-all active:scale-95 shadow-lg shadow-indigo-600/20">
+                            END TURN
+                        </button>
+                    </div>
+
+                    <div id="player-hand" class="flex gap-2 h-106 px-6 w-full justify-center overflow-x-auto pb-4 relative z-10"></div>
+                    <div id="card-preview-panel"></div>
+                </div>
+            </div>
+
+        </div><!-- end flex-1 -->
+    </main>
+
+    <script src="scripts.js"></script>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PLAYER SYSTEM — save/load, collection, decks, pack shop
+         ══════════════════════════════════════════════════════════ -->
+    <script src="player.js"></script>
+</body>
+</html>
