@@ -9,7 +9,7 @@
 
     // Three pack tiers
     // svgArt is an inline SVG used as the pack image — no external files needed.
-    // Drop a real image file at imagePath to override (the img onerror will fall back to svgArt).
+    // Drop a real image file in Supabase storage at images/packs/ to override (the img onerror will fall back to svgArt).
     function makePackSVG(label, color, accent) {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 220">
           <defs>
@@ -35,7 +35,7 @@
             id: 'common',
             name: 'Common Pack',
             cost: 50,
-            imagePath: 'packs/common.png',
+            imagePath: supabaseStorageUrl('common.png'),
             svgArt: makePackSVG('common', '#94a3b8', '#64748b'),
             color: '#94a3b8',
             glow: 'rgba(100,116,139,0.4)',
@@ -45,7 +45,7 @@
             id: 'rare',
             name: 'Rare Pack',
             cost: 100,
-            imagePath: 'packs/rare.png',
+            imagePath: supabaseStorageUrl('rare.png'),
             svgArt: makePackSVG('rare', '#60a5fa', '#3b82f6'),
             color: '#3b82f6',
             glow: 'rgba(59,130,246,0.4)',
@@ -55,7 +55,7 @@
             id: 'epic',
             name: 'Epic Pack',
             cost: 200,
-            imagePath: 'packs/epic.png',
+            imagePath: supabaseStorageUrl('epic.png'),
             svgArt: makePackSVG('epic', '#c084fc', '#a855f7'),
             color: '#a855f7',
             glow: 'rgba(168,85,247,0.5)',
@@ -241,11 +241,13 @@
 
             // Card image
             const cardDef = ALL_CHARS.find(x => x.name === c.name);
-            const imgPath = cardDef ? await getCardImage(c.name) : null;
+            const imgPath = cardDef ? getCardImage(c.name) : null;
+            const imgFallback = cardDef ? getCardImageJpg(c.name) : null;
             const rarityColors = {COMMON:'#64748b',UNCOMMON:'#10b981',RARE:'#3b82f6',EPIC:'#a855f7',LEGENDARY:'#f59e0b'};
             if (imgPath) {
                 const img = document.createElement('img');
                 img.src = imgPath;
+                img.onerror = () => { if (img.src !== imgFallback) img.src = imgFallback; };
                 img.style.cssText = `width:100%;border-radius:12px;border:2px solid ${rarityColors[c.rarity]||'#64748b'};box-shadow:0 8px 24px rgba(0,0,0,0.6);`;
                 wrap.appendChild(img);
             } else {
@@ -323,9 +325,9 @@
                 slotEl.innerHTML = `<div class="remove-x">✕</div><div style="font-size:9px;font-weight:800;text-align:center;padding:4px;color:rgba(255,255,255,0.8);">${deck.cards[i]}</div>`;
                 slotEl.onclick = () => { deck.cards.splice(i, 1); savePlayerData(); renderDeckBuilder(); };
                 if (cardDef) {
-                    getCardImage(cardDef.name).then(src => {
-                        if (src) slotEl.innerHTML = `<div class="remove-x">✕</div><img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
-                    });
+                    const src = getCardImage(cardDef.name);
+                    const fb  = getCardImageJpg(cardDef.name);
+                    slotEl.innerHTML = `<div class="remove-x">✕</div><img src="${src}" onerror="if(this.src!=='${fb}')this.src='${fb}'" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
                 }
             } else {
                 slotEl.innerHTML = `<span style="font-size:20px;opacity:0.2;">+</span>`;
@@ -377,10 +379,14 @@
                 <span class="pick-count">${inDeck}/${owned}</span>
             `;
 
-            getCardImage(card.name).then(src => {
-                const img = row.querySelector('img');
-                if (img && src) { img.src = src; img.style.display = ''; }
-            });
+            const _imgEl = row.querySelector('img');
+            if (_imgEl) {
+                const _src = getCardImage(card.name);
+                const _fb  = getCardImageJpg(card.name);
+                _imgEl.src = _src;
+                _imgEl.onerror = () => { if (_imgEl.src !== _fb) _imgEl.src = _fb; };
+                _imgEl.style.display = '';
+            }
 
             if (canAdd) {
                 row.onclick = () => {
@@ -444,6 +450,10 @@
             const wrap = document.createElement('div');
             wrap.className = `collection-card-wrap ${locked ? 'locked' : ''}`;
             wrap.title = locked ? `${card.name} — not owned` : `${card.name} (×${count})`;
+            if (!locked) {
+                wrap.style.cursor = 'pointer';
+                wrap.onclick = () => showCardDetails(card.name);
+            }
 
             const rarityColors = {COMMON:'#64748b',UNCOMMON:'#10b981',RARE:'#3b82f6',EPIC:'#a855f7',LEGENDARY:'#f59e0b'};
             const borderColor = rarityColors[card.rarity] || '#64748b';
@@ -458,14 +468,126 @@
                 ${!locked ? `<div class="owned-count-badge">×${count}</div>` : '<div class="locked-overlay"><i data-lucide="lock" class="w-6 h-6" style="color:rgba(255,255,255,0.3);"></i></div>'}
             `;
 
-            getCardImage(card.name).then(src => {
-                const img = wrap.querySelector('img');
-                if (img && src) img.src = src;
-            });
+            const _ci = wrap.querySelector('img');
+            if (_ci) {
+                const _src = getCardImage(card.name);
+                const _fb  = getCardImageJpg(card.name);
+                _ci.src = _src;
+                _ci.onerror = () => { if (_ci.src !== _fb) _ci.src = _fb; };
+            }
 
             grid.appendChild(wrap);
         }
         lucide.createIcons();
+    }
+
+    /* ─── Card details modal ───────────────────────────────── */
+    async function showCardDetails(cardName) {
+        const card = ALL_CHARS && ALL_CHARS.find(c => c.name === cardName);
+        if (!card) return;
+
+        const rarityColors = {COMMON:'#64748b',UNCOMMON:'#10b981',RARE:'#3b82f6',EPIC:'#a855f7',LEGENDARY:'#f59e0b'};
+        const borderColor = rarityColors[card.rarity] || '#64748b';
+        const count = getOwnedCount(cardName);
+
+        let statsHtml = '';
+        if (card.atk !== undefined || card.hp !== undefined) {
+            statsHtml = `
+                <div class="card-details-stats">
+                    ${card.atk !== undefined ? `
+                        <div class="card-details-stat">
+                            <div class="card-details-stat-value" style="color:#f87171;">⚔️ ${card.atk}</div>
+                            <div class="card-details-stat-label">Attack</div>
+                        </div>
+                    ` : ''}
+                    ${card.hp !== undefined ? `
+                        <div class="card-details-stat">
+                            <div class="card-details-stat-value" style="color:#86efac;">❤️ ${card.hp}</div>
+                            <div class="card-details-stat-label">Health</div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        let abilitiesHtml = '';
+        if (card.description) {
+            const formattedDesc = await formatDescription(card.description);
+            abilitiesHtml = `
+                <div class="card-details-description">
+                    <div class="card-details-description-label">Description</div>
+                    <div style="font-size:13px;line-height:1.6;color:rgba(255,255,255,0.85);">${formattedDesc}</div>
+                </div>
+            `;
+        }
+
+        const imgSrc = getCardImage(cardName);
+        const imgFb = getCardImageJpg(cardName);
+
+        const content = `
+            <div class="card-details-image-section">
+                <img src="${imgSrc}" onerror="if(this.src!=='${imgFb}')this.src='${imgFb}'" alt="${cardName}" class="card-details-image" style="border-color:${borderColor}80;">
+                <div style="font-size:12px;color:rgba(255,255,255,0.6);text-align:center;">
+                    Owned: <span style="color:${borderColor};font-weight:900;font-size:14px;">×${count}</span>
+                </div>
+            </div>
+            <div class="card-details-info">
+                <div class="card-details-header">
+                    <div class="card-details-name" style="color:${borderColor};">${card.name}</div>
+                    <div class="card-details-meta">
+                        <div class="card-details-badge" style="border-color:${borderColor}44;color:${borderColor};">
+                            ${card.rarity}
+                        </div>
+                        ${card.series ? `<div class="card-details-badge">${card.series}</div>` : ''}
+                        ${card.cost !== undefined ? `<div class="card-details-badge">Cost: ${card.cost}</div>` : ''}
+                    </div>
+                </div>
+                ${statsHtml}
+                ${abilitiesHtml}
+            </div>
+        `;
+
+        document.getElementById('card-details-content').innerHTML = content;
+        document.getElementById('card-details-overlay').classList.add('visible');
+    }
+
+    function closeCardDetails() {
+        document.getElementById('card-details-overlay').classList.remove('visible');
+    }
+
+    /* ─── No Deck Warning ──────────────────────────────────── */
+    function checkDeckBeforeBattle() {
+        if (!playerData || !playerData.decks) return false;
+        
+        const activeDeck = playerData.decks[playerData.activeDeckIndex];
+        if (!activeDeck || !activeDeck.cards || activeDeck.cards.length === 0) {
+            showNoDeckWarning();
+            return false;
+        }
+        return true;
+    }
+
+    function showNoDeckWarning() {
+        document.getElementById('no-deck-overlay').style.opacity = '1';
+        document.getElementById('no-deck-overlay').style.pointerEvents = 'auto';
+    }
+
+    function closeNoDeckWarning() {
+        document.getElementById('no-deck-overlay').style.opacity = '0';
+        document.getElementById('no-deck-overlay').style.pointerEvents = 'none';
+    }
+
+    function goToDeckBuilder() {
+        closeNoDeckWarning();
+        showScreen('deckbuilder');
+    }
+
+    function goToArena() {
+        // Check if player has a valid deck before entering arena
+        if (!checkDeckBeforeBattle()) {
+            return;
+        }
+        showScreen('arena');
     }
 
     /* ─── Pack shop screen ─────────────────────────────────── */

@@ -1,28 +1,28 @@
-async function getCardImage(name) {
+lucide.createIcons();
+
+        // ── Supabase config ──────────────────────────────────────────────────────
+        const SUPABASE_URL    = 'https://djknvuaivmtudiecwztx.supabase.co';
+        const SUPABASE_KEY    = 'sb_publishable_oKPY6OIcovoVQlLZqBOLMg_skAxeCwp';
+        const SUPABASE_BUCKET = 'card-images';
+
+        function supabaseStorageUrl(path) {
+            return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
+        }
+
+        // Returns the .png URL directly — no async HEAD check needed.
+        // img tags use onerror to fall back to .jpg if .png is missing.
+        function getCardImage(name) {
             const base = name.toLowerCase().replace(/ /g, '-');
-            try {
-                const response = await fetch('images/' + base + '.jpg', { method: 'HEAD' });
-                if (response.ok) {
-                    return 'images/' + base + '.jpg';
-                }
-            } catch (e) {}
-            try {
-                const response = await fetch('images/' + base + '.jpeg', { method: 'HEAD' });
-                if (response.ok) {
-                    return 'images/' + base + '.jpeg';
-                }
-            } catch (e) {}
-            try {
-                const response = await fetch('images/' + base + '.png', { method: 'HEAD' });
-                if (response.ok) {
-                    return 'images/' + base + '.png';
-                }
-            } catch (e) {}
-            return null; // No image found
+            return supabaseStorageUrl(`${base}.png`);
+        }
+
+        function getCardImageJpg(name) {
+            const base = name.toLowerCase().replace(/ /g, '-');
+            return supabaseStorageUrl(`${base}.jpg`);
         }
 
         function cloneCard(card) {
-            return { ...card, image: card.image, maxHp: card.maxHp ?? card.hp };
+            return { ...card, image: card.image, imageFallback: card.imageFallback, maxHp: card.maxHp ?? card.hp };
         }
 
         function resolveEffectValue(value, card, context = {}) {
@@ -742,14 +742,18 @@ async function getCardImage(name) {
 
         async function loadCards() {
             try {
-                const response = await fetch('cards.json');
-                if (!response.ok) throw new Error('cards.json not found');
+                const url = supabaseStorageUrl('cards.json');
+                const response = await fetch(url, {
+                    headers: { 'apikey': SUPABASE_KEY }
+                });
+                if (!response.ok) throw new Error(`cards.json not found (${response.status})`);
                 const data = await response.json();
                 // CLEAN UP: Just map the basic properties and the image function
                 ALL_CHARS = data.map(card => ({
                     ...card,
                     abilities: card.abilities || {},
-                    image: async () => await getCardImage(card.name)
+                    image: getCardImage(card.name),
+                    imageFallback: getCardImageJpg(card.name)
                 }));
                 log(`Loaded cards.json (${data.length} cards)`);
             } catch (error) {
@@ -970,14 +974,15 @@ async function getCardImage(name) {
                         ? ALL_CHARS.find(c => c.name.toLowerCase() === imgName.toLowerCase()) 
                         : null;
                     
-                    const imgPath = linkedCard ? await getCardImage(linkedCard.name) : '';
+                    const imgPath = linkedCard ? getCardImage(linkedCard.name) : '';
+                    const imgFallback = linkedCard ? getCardImageJpg(linkedCard.name) : '';
                     console.log(imgPath)
 
                     if (imgPath) {
                         // We add the image and optionally the name below it inside the tooltip
                         imgTagsHTML += `
                         <div class="flex flex-col items-center justify-center flex-1">
-                            <img src="${imgPath}" class="w-full h-full object-cover rounded-md aspect-square">
+                            <img src="${imgPath}" onerror="if(this.src!=='${imgFallback}')this.src='${imgFallback}'" class="w-full h-full object-cover rounded-md aspect-square">
                         </div>`
                     }
                 }
@@ -1041,8 +1046,9 @@ async function getCardImage(name) {
         }
 
         async function createCardUI(card, index, type, status = {}) {
-            // Ensure we await the image source
-            const imageSrc = await card.image();
+            // card.image is now a plain URL string
+            const imageSrc = card.image || '';
+            const imageFallback = card.imageFallback || '';
             const descriptionHTML = await formatDescription(card.description);
 
             const div = document.createElement('div');
@@ -1073,7 +1079,7 @@ async function getCardImage(name) {
                         <div class="rarity-badge">${card.rarity}</div>
                         ${card.rank ? `<div class="rank-badge rank-${card.rank.toUpperCase()}">${card.rank.toUpperCase()}</div>` : ''}
                         <div class="card-title-container flex-1 flex flex-col items-center pointer-events-none">
-                            <img src="${imageSrc}" class="w-8 h-8 mb-1 object-contain" alt="${card.name}">
+                            <img src="${imageSrc}" onerror="if(this.src!=='${imageFallback}')this.src='${imageFallback}'" class="w-8 h-8 mb-1 object-contain" alt="${card.name}">
                             <div id="card-title" class="text-[9px] font-black leading-tight uppercase px-1">${card.name}</div>
                         </div>
                         <div class="description-box">${descriptionHTML}</div>
@@ -1178,6 +1184,10 @@ async function getCardImage(name) {
         }
 
         function startBattle() {
+            // Check if player has a valid deck before entering arena
+            if (!checkDeckBeforeBattle()) {
+                return;
+            }
             showScreen('arena');
             startBattleInternal();
         }
@@ -1634,14 +1644,13 @@ async function getCardImage(name) {
         }
 
         function checkVictory() {
-            if(state.eHp <= 0) {
-                // showBattleResult is injected by the player system
-                if (typeof window.showBattleResult === 'function') window.showBattleResult(true);
-                else { alert("VICTORY"); showScreen('lobby'); }
+            if(state.eHp <= 0) { 
+                alert("VICTORY - ENEMY NEXUS DESTROYED"); 
+                showScreen('lobby'); 
             }
-            else if(state.pHp <= 0) {
-                if (typeof window.showBattleResult === 'function') window.showBattleResult(false);
-                else { alert("DEFEAT"); showScreen('lobby'); }
+            else if(state.pHp <= 0) { 
+                alert("DEFEAT - YOUR NEXUS HAS FALLEN"); 
+                showScreen('lobby'); 
             }
         }
 
@@ -2801,11 +2810,28 @@ async function endTurn() {
     showTurnBanner('player');
 }
 
+/* ── Patch showScreen to toggle arena-active on body ─────── */
+// This must come AFTER all other function definitions
+(function patchShowScreen() {
+    // Store original (already defined earlier in scripts.js)
+    if (typeof showScreen !== 'function') return;
+    const _orig = showScreen;
+    window.showScreen = function(id) {
+        _orig(id);
+        if (id === 'arena') {
+            document.body.classList.add('arena-active');
+        } else {
+            document.body.classList.remove('arena-active');
+            // Dismiss any open dialogue when leaving arena
+            const box = document.getElementById('vn-dialogue');
+            if (box) box.classList.remove('vn-visible');
+        }
+    };
+})();
+
         window.onload = async () => {
-            lucide.createIcons();
             await loadCards();
-            // showScreen and nexus_ready are handled by the player system in index.html
-            // which polls for ALL_CHARS readiness and fires nexus_ready exactly once.
-            // We just expose showScreen on window so the player system patch can find it.
-            window._baseShowScreen = showScreen;
+            showScreen('vault');
+            // If you want to start directly in battle for testing, uncomment below:
+            // startBattle();
         };

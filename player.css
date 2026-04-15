@@ -306,3 +306,99 @@
         .rc-RARE      { color: #60a5fa; } .rb-RARE      { background: #3b82f6; }
         .rc-EPIC      { color: #c084fc; } .rb-EPIC      { background: #a855f7; }
         .rc-LEGENDARY { color: #fbbf24; } .rb-LEGENDARY { background: #f59e0b; }
+
+        /* ── CARD DETAILS MODAL ─────────────────────── */
+        #card-details-overlay {
+            position: fixed; inset: 0; z-index: 64000;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #card-details-overlay.visible {
+            opacity: 1; pointer-events: auto;
+        }
+        #card-details-panel {
+            background: linear-gradient(145deg, #0f172a, #1a0a2e);
+            border: 2px solid rgba(168,85,247,0.3);
+            border-radius: 24px; padding: 40px;
+            max-width: 900px; width: 90%;
+            max-height: 85vh; overflow-y: auto;
+            box-shadow: 0 0 80px rgba(99,102,241,0.2), 0 40px 60px rgba(0,0,0,0.8);
+            animation: modal-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+        }
+        #card-details-content {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start;
+        }
+        .card-details-image-section {
+            display: flex; flex-direction: column; align-items: center; gap: 16px;
+        }
+        .card-details-image {
+            width: 100%; max-width: 300px; aspect-ratio: 3/4;
+            border-radius: 16px; object-fit: cover;
+            border: 2px solid rgba(168,85,247,0.4);
+            box-shadow: 0 20px 60px rgba(168,85,247,0.3);
+        }
+        .card-details-info {
+            display: flex; flex-direction: column; gap: 20px;
+        }
+        .card-details-header {
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .card-details-name {
+            font-size: 32px; font-weight: 900; text-transform: uppercase;
+            letter-spacing: -0.02em; line-height: 1;
+        }
+        .card-details-meta {
+            display: flex; gap: 16px; flex-wrap: wrap;
+        }
+        .card-details-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 14px; border-radius: 10px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+            font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .card-details-stats {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        }
+        .card-details-stat {
+            background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3);
+            border-radius: 12px; padding: 16px; text-align: center;
+        }
+        .card-details-stat-value {
+            font-size: 28px; font-weight: 900; line-height: 1; margin-bottom: 4px;
+        }
+        .card-details-stat-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: rgba(255,255,255,0.5);
+        }
+        .card-details-description {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px; padding: 16px; line-height: 1.6;
+            font-size: 13px; color: rgba(255,255,255,0.85);
+        }
+        .card-details-description-label {
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.08em; color: rgba(255,255,255,0.4); margin-bottom: 8px;
+        }
+        .card-details-abilities {
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .card-details-ability {
+            background: rgba(255,255,255,0.03); border-left: 3px solid rgba(168,85,247,0.5);
+            border-radius: 8px; padding: 12px; font-size: 12px;
+        }
+        .card-details-ability-name {
+            font-weight: 700; color: #c084fc; margin-bottom: 4px;
+        }
+        .card-details-ability-desc {
+            color: rgba(255,255,255,0.7); font-size: 11px; line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            #card-details-panel { padding: 24px; }
+            #card-details-content { grid-template-columns: 1fr; gap: 24px; }
+            .card-details-image { max-width: 250px; }
+            .card-details-name { font-size: 24px; }
+        }
