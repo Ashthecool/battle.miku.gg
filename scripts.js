@@ -702,6 +702,94 @@ lucide.createIcons();
                     break;
                 }
 
+                case 'giveSpecificCardBenefits': {
+                    const targetCardName = effect.cardName;
+                    if (!targetCardName) {
+                        console.warn('giveSpecificCardBenefits: No cardName specified');
+                        break;
+                    }
+
+                    const atkBonus = effect.atkBonus || 0;
+                    const hpBonus = effect.hpBonus || 0;
+                    const statusType = effect.statusType; // e.g., 'invincible'
+                    const statusAmount = effect.statusAmount || 1;
+
+                    // Search both boards for the specific card
+                    const allBoards = [
+                        { board: state.pBoard, side: 'player' },
+                        { board: state.eBoard, side: 'enemy' }
+                    ];
+
+                    let found = false;
+                    for (const { board, side } of allBoards) {
+                        for (let idx = 0; idx < board.length; idx++) {
+                            const unit = board[idx];
+                            if (unit && unit.card && unit.card.name === targetCardName) {
+                                // Apply benefits to the found card
+                                if (atkBonus > 0) {
+                                    unit.card.atk += atkBonus;
+                                }
+                                if (hpBonus > 0) {
+                                    unit.card.maxHp += hpBonus;
+                                    unit.card.hp += hpBonus;
+                                }
+                                if (statusType && statusAmount > 0) {
+                                    unit.status = unit.status || {};
+                                    unit.status[statusType] = (unit.status[statusType] || 0) + statusAmount;
+                                }
+
+                                log(`${card.name.toUpperCase()} BUFFS ${targetCardName.toUpperCase()} WITH +${atkBonus} ATK, +${hpBonus} HP${statusType ? `, AND ${statusAmount} ${statusType.toUpperCase()}` : ''}!`);
+                                
+                                // Animate the buffed card
+                                const cardEl = getSlotCard(side, idx);
+                                if (cardEl) animateCard(cardEl, 'animate-ability');
+                                
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) break;
+                    }
+
+                    if (!found) {
+                        log(`${card.name.toUpperCase()} TRIED TO BUFF ${targetCardName.toUpperCase()} BUT IT'S NOT IN PLAY.`);
+                    }
+                    break;
+                }
+
+                case 'applyShield': {
+                    // Give the unit a shield that absorbs damage
+                    unit.status = unit.status || {};
+                    unit.status.shield = (unit.status.shield || 0) + amount;
+                    log(`${card.name.toUpperCase()} GAINS ${amount} SHIELD!`);
+                    if (context.side !== undefined && context.slot !== undefined) {
+                        animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                    }
+                    break;
+                }
+
+                case 'applyReflect': {
+                    // Give the unit reflect that damages attackers
+                    unit.status = unit.status || {};
+                    unit.status.reflect = (unit.status.reflect || 0) + amount;
+                    log(`${card.name.toUpperCase()} GAINS REFLECT ${amount}! ATTACKERS WILL TAKE DAMAGE.`);
+                    if (context.side !== undefined && context.slot !== undefined) {
+                        animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                    }
+                    break;
+                }
+
+                case 'applyInvisibility': {
+                    // Make the unit invisible (can't be targeted)
+                    unit.status = unit.status || {};
+                    unit.status.invisible = (unit.status.invisible || 0) + amount;
+                    log(`${card.name.toUpperCase()} BECOMES INVISIBLE FOR ${amount} ROUND(S)! CAN'T BE TARGETED.`);
+                    if (context.side !== undefined && context.slot !== undefined) {
+                        animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                    }
+                    break;
+                }
+
         }
     }
         async function enemySpeak(text, duration = 2000) {
@@ -1337,17 +1425,39 @@ lucide.createIcons();
                 await triggerCardEvent('whenAttacked', def, { target: atk, slot: eIdx, side: 'enemy', board: state.eBoard });
                 await triggerCardEvent('whenAttacked', atk, { target: def, slot: pIdx, side: 'player', board: state.pBoard });
 
-                // 1. APPLY DAMAGE WITH INVINCIBILITY CHECK
+                // 1. APPLY DAMAGE WITH INVINCIBILITY/SHIELD CHECK
+                let actualDamageToDef = atk.card.atk;
                 if (def.status && def.status.invincible > 0) {
                     log(`${def.card.name.toUpperCase()} IS INVINCIBLE! NO DAMAGE TAKEN.`);
-                } else {
-                    def.card.hp -= atk.card.atk;
+                    actualDamageToDef = 0;
+                } else if (def.status && def.status.shield > 0) {
+                    const shieldAbsorbed = Math.min(def.status.shield, atk.card.atk);
+                    def.status.shield -= shieldAbsorbed;
+                    actualDamageToDef = atk.card.atk - shieldAbsorbed;
+                    log(`${def.card.name.toUpperCase()}'S SHIELD ABSORBS ${shieldAbsorbed} DAMAGE! (${def.status.shield} SHIELD REMAINING)`);
+                    if (actualDamageToDef > 0) {
+                        log(`${def.card.name.toUpperCase()} TAKES ${actualDamageToDef} DAMAGE THROUGH SHIELD.`);
+                    }
+                }
+                
+                if (actualDamageToDef > 0) {
+                    def.card.hp -= actualDamageToDef;
                 }
 
+                // 2. APPLY COUNTER DAMAGE WITH INVINCIBILITY/REFLECT CHECK
+                let actualDamageToAtk = def.card.atk;
                 if (atk.status && atk.status.invincible > 0) {
                     log(`${atk.card.name.toUpperCase()} IS INVINCIBLE! NO COUNTER DAMAGE.`);
-                } else {
-                    atk.card.hp -= def.card.atk;
+                    actualDamageToAtk = 0;
+                } else if (def.status && def.status.reflect > 0) {
+                    // Reflect damage back to attacker
+                    const reflectDamage = Math.min(def.status.reflect, def.card.atk);
+                    actualDamageToAtk = def.card.atk + reflectDamage;
+                    log(`${def.card.name.toUpperCase()} REFLECTS ${reflectDamage} DAMAGE BACK TO ${atk.card.name.toUpperCase()}!`);
+                }
+                
+                if (actualDamageToAtk > 0) {
+                    atk.card.hp -= actualDamageToAtk;
                 }
 
                 const isHaste2 = atk.card.ability === 'haste2';
@@ -1524,10 +1634,12 @@ lucide.createIcons();
                                 targetType = 'unit';
                                 targetIdx = guardIndex;
                             } else {
-                                // Randomly choose between player's units and the Nexus
+                                // Randomly choose between player's units and the Nexus (excluding invisible units)
                                 const validTargets = [{ type: 'nexus' }];
                                 state.pBoard.forEach((pUnit, idx) => {
-                                    if (pUnit) validTargets.push({ type: 'unit', idx: idx });
+                                    if (pUnit && (!pUnit.status || !pUnit.status.invisible || pUnit.status.invisible <= 0)) {
+                                        validTargets.push({ type: 'unit', idx: idx });
+                                    }
                                 });
                                 
                                 const chosen = validTargets[Math.floor(Math.random() * validTargets.length)];
@@ -1546,19 +1658,42 @@ lucide.createIcons();
                                 await triggerCardEvent('whenAttacked', targetUnit, { target: u, slot: targetIdx, side: 'player', board: state.pBoard });
                                 await triggerCardEvent('whenAttacked', u, { target: targetUnit, slot: enemyIdx, side: 'enemy', board: state.eBoard });
 
-                                // AI damages Player Unit
+                                // AI damages Player Unit (with shield/reflect checks)
+                                let actualDamageToTarget = u.card.atk;
                                 if (targetUnit.status && targetUnit.status.invincible > 0) {
                                     log(`INVINCIBLE: ${targetUnit.card.name} blocked the hit!`);
-                                } else {
-                                    targetUnit.card.hp -= u.card.atk;
-                                    log(`${u.card.name} hits ${targetUnit.card.name} for ${u.card.atk}.`);
+                                    actualDamageToTarget = 0;
+                                } else if (targetUnit.status && targetUnit.status.shield > 0) {
+                                    const shieldAbsorbed = Math.min(targetUnit.status.shield, u.card.atk);
+                                    targetUnit.status.shield -= shieldAbsorbed;
+                                    actualDamageToTarget = u.card.atk - shieldAbsorbed;
+                                    log(`${targetUnit.card.name.toUpperCase()}'S SHIELD ABSORBS ${shieldAbsorbed} DAMAGE! (${targetUnit.status.shield} SHIELD REMAINING)`);
+                                    if (actualDamageToTarget > 0) {
+                                        log(`${targetUnit.card.name} takes ${actualDamageToTarget} damage through shield.`);
+                                    }
                                 }
                                 
-                                // Player Unit damages AI Unit (Fair counter-attack)
+                                if (actualDamageToTarget > 0) {
+                                    targetUnit.card.hp -= actualDamageToTarget;
+                                    log(`${u.card.name} hits ${targetUnit.card.name} for ${actualDamageToTarget}.`);
+                                } else if (actualDamageToTarget === 0 && !(targetUnit.status && targetUnit.status.invincible > 0)) {
+                                    log(`${u.card.name} hits ${targetUnit.card.name} but shield blocks all damage.`);
+                                }
+                                
+                                // Player Unit damages AI Unit (Fair counter-attack with reflect)
+                                let actualDamageToAI = targetUnit.card.atk;
                                 if (u.status && u.status.invincible > 0) {
                                     log(`INVINCIBLE: ${u.card.name} takes no counter damage!`);
-                                } else {
-                                    u.card.hp -= targetUnit.card.atk;
+                                    actualDamageToAI = 0;
+                                } else if (targetUnit.status && targetUnit.status.reflect > 0) {
+                                    // Reflect damage back to AI
+                                    const reflectDamage = Math.min(targetUnit.status.reflect, targetUnit.card.atk);
+                                    actualDamageToAI = targetUnit.card.atk + reflectDamage;
+                                    log(`${targetUnit.card.name.toUpperCase()} REFLECTS ${reflectDamage} DAMAGE BACK TO ${u.card.name.toUpperCase()}!`);
+                                }
+                                
+                                if (actualDamageToAI > 0) {
+                                    u.card.hp -= actualDamageToAI;
                                 }
 
                                 // Resolve Player Unit Death
@@ -1601,9 +1736,12 @@ lucide.createIcons();
                         }
                     }
 
-                    // Reset enemy statuses and decrement Invincibility
+                    // Reset enemy statuses and decrement temporary effects
                     if(u) {
                         if (u.status.invincible > 0) u.status.invincible--;
+                        if (u.status.shield > 0) u.status.shield--;
+                        if (u.status.reflect > 0) u.status.reflect--;
+                        if (u.status.invisible > 0) u.status.invisible--;
                         u.status.exhausted = false;
                         if (u.status.silenced > 0) u.status.silenced--;
                         u.status.justPlayed = false;
@@ -1614,10 +1752,13 @@ lucide.createIcons();
                 if(state.maxMana < 10) state.maxMana++;
                 state.mana = state.maxMana;
 
-                // 5. Reset player statuses and decrement Invincibility
+                // 5. Reset player statuses and decrement temporary effects
                 state.pBoard.forEach(u => { 
                     if(u) { 
                         if (u.status.invincible > 0) u.status.invincible--;
+                        if (u.status.shield > 0) u.status.shield--;
+                        if (u.status.reflect > 0) u.status.reflect--;
+                        if (u.status.invisible > 0) u.status.invisible--;
                         u.status.exhausted = false; 
                         u.status.justPlayed = false; 
                         if (u.status.silenced > 0) u.status.silenced--;
@@ -1996,6 +2137,9 @@ async function endTurn() {
 
             if (u) {
                 if (u.status.invincible > 0) u.status.invincible--;
+                if (u.status.shield > 0) u.status.shield--;
+                if (u.status.reflect > 0) u.status.reflect--;
+                if (u.status.invisible > 0) u.status.invisible--;
                 u.status.exhausted  = false;
                 if (u.status.silenced > 0) u.status.silenced--;
                 u.status.justPlayed = false;
@@ -2010,6 +2154,9 @@ async function endTurn() {
         state.pBoard.forEach(u => {
             if (u) {
                 if (u.status.invincible > 0) u.status.invincible--;
+                if (u.status.shield > 0) u.status.shield--;
+                if (u.status.reflect > 0) u.status.reflect--;
+                if (u.status.invisible > 0) u.status.invisible--;
                 u.status.exhausted  = false;
                 u.status.justPlayed = false;
                 if (u.status.silenced > 0) u.status.silenced--;
@@ -2574,6 +2721,9 @@ async function endTurn() {
         u.status.exhausted  = false;
         u.status.justPlayed = false;
         if (u.status.invincible > 0) u.status.invincible--;
+        if (u.status.shield > 0) u.status.shield--;
+        if (u.status.reflect > 0) u.status.reflect--;
+        if (u.status.invisible > 0) u.status.invisible--;
         if (u.status.silenced  > 0) u.status.silenced--;
     });
 
@@ -2780,6 +2930,9 @@ async function endTurn() {
     state.pBoard.forEach(u => {
         if (!u) return;
         if (u.status.invincible > 0) u.status.invincible--;
+        if (u.status.shield > 0) u.status.shield--;
+        if (u.status.reflect > 0) u.status.reflect--;
+        if (u.status.invisible > 0) u.status.invisible--;
         u.status.exhausted  = false;
         u.status.justPlayed = false;
         if (u.status.silenced > 0) u.status.silenced--;
