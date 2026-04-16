@@ -682,25 +682,6 @@ lucide.createIcons();
                     }
                     break;
                 }
-                case 'manaSteal': {
-                    const stolen = Math.min(amount, state.maxMana - 1);
-                    if (stolen > 0) {
-                        state.maxMana -= stolen;
-                        state.mana = Math.min(state.mana + stolen, state.maxMana + stolen);
-                        log(`${card.name.toUpperCase()} STEALS ${stolen} MANA! POOL NOW ${state.maxMana}.`);
-                        animateCard(document.getElementById('mana-text'), 'animate-ability');
-                    }
-                    break;
-                }
-                case 'manaDrain': {
-                    const drain = Math.min(amount, state.maxMana - 1); // never below 1
-                    if (drain > 0) {
-                        state.maxMana -= drain;
-                        log(`${card.name.toUpperCase()} DRAINED ${drain} MANA FROM THE FIELD! MAX IS NOW ${state.maxMana}.`);
-                        animateCard(document.getElementById('mana-text'), 'animate-ability');
-                    }
-                    break;
-                }
 
                 case 'giveSpecificCardBenefits': {
                     const targetCardName = effect.cardName;
@@ -786,6 +767,132 @@ lucide.createIcons();
                     log(`${card.name.toUpperCase()} BECOMES INVISIBLE FOR ${amount} ROUND(S)! CAN'T BE TARGETED.`);
                     if (context.side !== undefined && context.slot !== undefined) {
                         animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                    }
+                    break;
+                }
+
+                case 'lowerRandomEnemysAttack': {
+                    // Lowers ATK from a random enemy.
+                    const enemyBoard = getOpposingBoard(context) || [];
+                    const candidates = enemyBoard
+                        .map((target, idx) => target && target.card ? { target, idx } : null)
+                        .filter(Boolean);
+
+                    if (candidates.length === 0) break;
+
+                    const victimPick = candidates[Math.floor(Math.random() * candidates.length)];
+                    const victim = victimPick.target;
+                    const lowered = Math.min(amount, victim.card.atk);
+                    victim.card.atk -= lowered;
+                    log(`${card.name.toUpperCase()} LOWERS ${victim.card.name.toUpperCase()}'S ATTACK BY ${lowered}! (NOW ${victim.card.atk} ATK)`);
+                    break;
+                }
+
+                case 'lowerSpecificEnemysAttack': {
+                    // Lowers ATK from the specific targeted enemy.
+                    if (context.target && context.target.card) {
+                        const lowered = Math.min(amount, context.target.card.atk);
+                        context.target.card.atk -= lowered;
+                        log(`${card.name.toUpperCase()} LOWERS ${context.target.card.name.toUpperCase()}'S ATTACK BY ${lowered}! (NOW ${context.target.card.atk} ATK)`);
+                    }
+                    break;
+                }
+
+                case 'lowerAllEnemiesAttack': {
+                    // Lowers ATK from all enemies.
+                    const enemyBoard = getOpposingBoard(context) || [];
+                    let totalLowered = 0;
+                    for (let i = 0; i < enemyBoard.length; i++) {
+                        const target = enemyBoard[i];
+                        if (target && target.card && target.card.atk > 0) {
+                            const lowered = Math.min(amount, target.card.atk);
+                            target.card.atk -= lowered;
+                            totalLowered += lowered;
+                            log(`${target.card.name.toUpperCase()}'S ATTACK LOWERED BY ${lowered}! (NOW ${target.card.atk} ATK)`);
+                        }
+                    }
+                    if (totalLowered > 0) {
+                        log(`${card.name.toUpperCase()} LOWERED ALL ENEMIES' ATTACK BY A TOTAL OF ${totalLowered}!`);
+                    }
+                    break;
+                }
+
+                case 'powerExchange': {
+                    // Swap attack values between self and a random enemy.
+                    const enemyBoard = getOpposingBoard(context) || [];
+                    const candidates = enemyBoard
+                        .map((target, idx) => target && target.card ? { target, idx } : null)
+                        .filter(Boolean);
+
+                    if (candidates.length === 0) break;
+
+                    const victimPick = candidates[Math.floor(Math.random() * candidates.length)];
+                    const victim = victimPick.target;
+                    const selfAtk = unit.card.atk;
+                    const victimAtk = victim.card.atk;
+                    
+                    unit.card.atk = victimAtk;
+                    victim.card.atk = selfAtk;
+                    
+                    log(`${card.name.toUpperCase()} EXCHANGES POWER WITH ${victim.card.name.toUpperCase()}! ${card.name.toUpperCase()} NOW HAS ${unit.card.atk} ATK, ${victim.card.name.toUpperCase()} NOW HAS ${victim.card.atk} ATK!`);
+                    break;
+                }
+
+                case 'multiStrike': {
+                    // Attack a random enemy 3 times (can hit different targets).
+                    const enemyBoard = getOpposingBoard(context) || [];
+                    let totalDamage = 0;
+                    const strikeCount = 3;
+
+                    for (let strike = 0; strike < strikeCount; strike++) {
+                        const candidates = enemyBoard
+                            .map((target, idx) => target && target.card ? { target, idx } : null)
+                            .filter(Boolean);
+
+                        if (candidates.length === 0) break;
+
+                        const victimPick = candidates[Math.floor(Math.random() * candidates.length)];
+                        const victim = victimPick.target;
+                        victim.card.hp -= amount;
+                        totalDamage += amount;
+                        
+                        log(`${card.name.toUpperCase()} STRIKE ${strike + 1}/3 - HITS ${victim.card.name.toUpperCase()} FOR ${amount} DAMAGE!`);
+
+                        if (victim.card.hp <= 0) {
+                            log(`${victim.card.name.toUpperCase()} DIES.`);
+                            await resolveBoardUnitDeath(victim, enemyBoard, victimPick.idx);
+                        }
+                    }
+                    log(`${card.name.toUpperCase()} COMPLETED MULTI-STRIKE, DEALING ${totalDamage} TOTAL DAMAGE!`);
+                    break;
+                }
+
+                case 'drainHealthFromAll': {
+                    // Steal HP from all enemies and heal self.
+                    const enemyBoard = getOpposingBoard(context) || [];
+                    let totalDrained = 0;
+
+                    for (let i = 0; i < enemyBoard.length; i++) {
+                        const target = enemyBoard[i];
+                        if (target && target.card && target.card.hp > 0) {
+                            const drained = Math.min(amount, target.card.hp);
+                            target.card.hp -= drained;
+                            totalDrained += drained;
+                            log(`${target.card.name.toUpperCase()} LOSES ${drained} HP!`);
+
+                            if (target.card.hp <= 0) {
+                                await triggerCardEvent('onDeath', target, { slot: i, side: enemyBoard === state.eBoard ? 'enemy' : 'player', board: enemyBoard });
+                                if (enemyBoard[i] === target && target.card.hp <= 0) {
+                                    enemyBoard[i] = null;
+                                }
+                            }
+                        }
+                    }
+
+                    if (totalDrained > 0) {
+                        const healed = Math.min(unit.card.maxHp - unit.card.hp, totalDrained);
+                        unit.card.hp += healed;
+                        log(`${card.name.toUpperCase()} DRAINS ${totalDrained} HP FROM ALL ENEMIES AND HEALS FOR ${healed} HP! (NOW ${unit.card.hp} HP)`);
                     }
                     break;
                 }
