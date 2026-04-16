@@ -713,6 +713,25 @@
             border-radius: inherit;
         }
 
+        /* Shield Status Effect */
+        .card-nexus.has-shield {
+            border-color: #4ade80 !important; /* Green border for shield */
+            box-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
+            position: relative;
+        }
+
+        .card-nexus.has-shield::after {
+            content: '🛡️';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            opacity: 0.7;
+            pointer-events: none;
+            z-index: 10;
+        }
+
         @keyframes divine-shimmer {
             0% { background-position: -150% -150%; }
             100% { background-position: 150% 150%; }

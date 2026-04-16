@@ -12,12 +12,12 @@ lucide.createIcons();
         // Returns the .png URL directly — no async HEAD check needed.
         // img tags use onerror to fall back to .jpg if .png is missing.
         function getCardImage(name) {
-            const base = name.toLowerCase().replace(/ /g, '-');
+            const base = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
             return supabaseStorageUrl(`${base}.png`);
         }
 
         function getCardImageJpg(name) {
-            const base = name.toLowerCase().replace(/ /g, '-');
+            const base = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
             return supabaseStorageUrl(`${base}.jpg`);
         }
 
@@ -973,6 +973,66 @@ lucide.createIcons();
                     }
                     break;
                 }
+                case 'damageNexus': {
+                    // Damage the opposite nexus for the specified amount
+                    if (context.side === 'player') {
+                        // Player unit damages enemy nexus
+                        state.eHp -= amount;
+                        log(`${card.name.toUpperCase()} DEALS ${amount} DAMAGE TO ENEMY NEXUS!`);
+                        animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                    } else {
+                        // Enemy unit damages player nexus
+                        state.pHp -= amount;
+                        log(`${card.name.toUpperCase()} DEALS ${amount} DAMAGE TO YOUR NEXUS!`);
+                        animateCard(document.getElementById('player-hp'), 'animate-ability');
+                    }
+                    break;
+                }
+
+                case 'summonRandom': {
+                    // Summon a random card from a provided list
+                    const cardList = effect.cardNames || effect.cards || [];
+                    if (!Array.isArray(cardList) || cardList.length === 0) {
+                        console.warn('summonRandom: No card list provided');
+                        break;
+                    }
+
+                    // Pick a random card name from the list
+                    const randomCardName = cardList[Math.floor(Math.random() * cardList.length)];
+                    const summonTemplate = ALL_CHARS.find(c => c.name === randomCardName);
+
+                    if (summonTemplate) {
+                        // Use the board provided in context (passed from await triggerCardEvent)
+                        // If no board in context, default to player board
+                        const targetBoard = context.board || state.pBoard;
+                        const sideName = (targetBoard === state.pBoard) ? "PLAYER" : "ENEMY";
+
+                        let count = 0;
+                        const summonQty = resolveEffectValue(effect.amount || 1, card, context);
+                        
+                        for (let i = 0; i < summonQty; i++) {
+                            const emptyIdx = targetBoard.findIndex(slot => slot === null);
+                            if (emptyIdx !== -1) {
+                                targetBoard[emptyIdx] = { 
+                                    card: cloneCard(summonTemplate),
+                                    status: { exhausted: true, justPlayed: true, silenced: false } 
+                                };
+                                await triggerCardEvent('onPlay', targetBoard[emptyIdx], {
+                                    slot: emptyIdx,
+                                    side: getBoardSide(targetBoard),
+                                    board: targetBoard
+                                });
+                                count++;
+                            }
+                        }
+                        if (count > 0) {
+                            log(`${card.name.toUpperCase()} SUMMONED ${count} ${randomCardName.toUpperCase()}(S) TO ${sideName} BOARD.`);
+                        }
+                    } else {
+                        console.warn(`Card to summon not found: ${randomCardName}`);
+                    }
+                    break;
+                }
 
         }
     }
@@ -1242,20 +1302,34 @@ lucide.createIcons();
 
                 let imgTagsHTML = '';
                 for (const imgName of imageNames) {
-                    const linkedCard = typeof ALL_CHARS !== 'undefined' 
-                        ? ALL_CHARS.find(c => c.name.toLowerCase() === imgName.toLowerCase()) 
+                    const linkedCard = typeof ALL_CHARS !== 'undefined'
+                        ? ALL_CHARS.find(c => c.name.toLowerCase() === imgName.toLowerCase())
                         : null;
-                    
-                    const imgPath = linkedCard ? getCardImage(linkedCard.name) : '';
-                    const imgFallback = linkedCard ? getCardImageJpg(linkedCard.name) : '';
-                    console.log(imgPath)
+
+                    const imgPath = linkedCard ? (linkedCard.image || getCardImage(linkedCard.name)) : '';
+                    const imgFallback = linkedCard ? (linkedCard.imageFallback || getCardImageJpg(linkedCard.name)) : '';
 
                     if (imgPath) {
-                        // We add the image and optionally the name below it inside the tooltip
-                        imgTagsHTML += `
+                        // Fetch with API key header and use a blob URL so Supabase auth works on <img> tags
+                        const blobUrl = await (async () => {
+                            try {
+                                const res = await fetch(imgPath, { headers: { 'apikey': SUPABASE_KEY } });
+                                if (res.ok) return URL.createObjectURL(await res.blob());
+                            } catch (_) {}
+                            // Fallback to .jpg if .png fetch failed
+                            try {
+                                const res2 = await fetch(imgFallback, { headers: { 'apikey': SUPABASE_KEY } });
+                                if (res2.ok) return URL.createObjectURL(await res2.blob());
+                            } catch (_) {}
+                            return '';
+                        })();
+
+                        if (blobUrl) {
+                            imgTagsHTML += `
                         <div class="flex flex-col items-center justify-center flex-1">
-                            <img src="${imgPath}" onerror="if(this.src!=='${imgFallback}')this.src='${imgFallback}'" class="w-full h-full object-cover rounded-md aspect-square">
-                        </div>`
+                            <img src="${blobUrl}" class="w-full h-full object-cover rounded-md aspect-square">
+                        </div>`;
+                        }
                     }
                 }
 
@@ -1326,11 +1400,12 @@ lucide.createIcons();
             const div = document.createElement('div');
 
             // ADDED: ${status.silenced ? 'silenced' : ''} to the className list
-            div.className = `card-nexus rarity-${card.rarity.toLowerCase()} 
-                ${status.exhausted ? 'is-exhausted' : ''} 
-                ${status.silenced ? 'silenced' : ''} 
+            div.className = `card-nexus rarity-${card.rarity.toLowerCase()}
+                ${status.exhausted ? 'is-exhausted' : ''}
+                ${status.silenced ? 'silenced' : ''}
                 ${status.invincible > 0 ? 'is-invincible' : ''}
-                ${card.ability === 'guard' ? 'is-guard' : ''} 
+                ${status.shield > 0 ? 'has-shield' : ''}
+                ${card.ability === 'guard' ? 'is-guard' : ''}
                 ${type === 'preview' ? 'card-vault' : ''}`;
                 
             // Only apply entry animation once
@@ -1351,7 +1426,7 @@ lucide.createIcons();
                         <div class="rarity-badge">${card.rarity}</div>
                         ${card.rank ? `<div class="rank-badge rank-${card.rank.toUpperCase()}">${card.rank.toUpperCase()}</div>` : ''}
                         <div class="card-title-container flex-1 flex flex-col items-center pointer-events-none">
-                            <img src="${imageSrc}" onerror="if(this.src!=='${imageFallback}')this.src='${imageFallback}'" class="w-8 h-8 mb-1 object-contain" alt="${card.name}">
+                            <img src="${imageSrc}" onerror="if(this.src!=='${imageFallback.replace(/'/g, '\\\'')}')this.src='${imageFallback.replace(/'/g, '\\\'')}'" crossorigin="anonymous" class="w-8 h-8 mb-1 object-contain" alt="${card.name}">
                             <div id="card-title" class="text-[9px] font-black leading-tight uppercase px-1">${card.name}</div>
                         </div>
                         <div class="description-box">${descriptionHTML}</div>
