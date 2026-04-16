@@ -433,6 +433,83 @@ lucide.createIcons();
                     }
                     break;
 
+                case 'giveSpecificAllyEffect': {
+                    // Apply a specific effect to a targeted ally
+                    const targetType = effect.target || 'self'; // 'self' | 'random' | 'cardName'
+                    const effectType = effect.effectType; // 'shield' | 'invincibility' | 'invisibility'
+                    const effectValue = resolveEffectValue(effect.value ?? amount, card, context);
+
+                    const allies = context.board || (context.side === 'enemy' ? state.eBoard : state.pBoard);
+                    let targetUnit = null;
+                    let targetIdx = null;
+
+                    // Determine the target unit based on targetType
+                    if (targetType === 'self') {
+                        targetUnit = unit;
+                        targetIdx = context.slot;
+                    } else if (targetType === 'random') {
+                        // Pick a random alive ally
+                        const alive = allies.map((u, i) => u && u.card ? { u, i } : null).filter(Boolean);
+                        if (alive.length > 0) {
+                            const pick = alive[Math.floor(Math.random() * alive.length)];
+                            targetUnit = pick.u;
+                            targetIdx = pick.i;
+                        }
+                    } else if (targetType === 'cardName') {
+                        // Find a specific ally by card name
+                        const cardName = effect.cardName;
+                        for (let i = 0; i < allies.length; i++) {
+                            if (allies[i] && allies[i].card && allies[i].card.name === cardName) {
+                                targetUnit = allies[i];
+                                targetIdx = i;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Apply the effect if a target was found
+                    if (targetUnit) {
+                        targetUnit.status = targetUnit.status || {};
+
+                        switch (effectType) {
+                            case 'shield':
+                                targetUnit.status.shield = (targetUnit.status.shield || 0) + effectValue;
+                                log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} ${effectValue} SHIELD!`);
+                                break;
+                            case 'invincibility':
+                                targetUnit.status.invincible = (targetUnit.status.invincible || 0) + effectValue;
+                                log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} INVINCIBILITY FOR ${effectValue} ROUND(S)!`);
+                                break;
+                            case 'invisibility':
+                                targetUnit.status.invisible = (targetUnit.status.invisible || 0) + effectValue;
+                                log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} INVISIBILITY FOR ${effectValue} ROUND(S)!`);
+                                break;
+                            case 'reflect':
+                                targetUnit.status.reflect = (targetUnit.status.reflect || 0) + effectValue;
+                                log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} REFLECT ${effectValue}!`);
+                                break;
+                            case 'attackUp':
+                                targetUnit.card.atk += effectValue;
+                                log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} +${effectValue} ATTACK!`);
+                                break;
+                            case 'hpUp':
+                                targetUnit.card.maxHp += effectValue;
+                                targetUnit.card.hp += effectValue;
+                                log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} +${effectValue} MAX HP!`);
+                                break;
+                            default:
+                                console.warn(`Unknown effect type: ${effectType}`);
+                        }
+
+                        // Animate the buffed ally
+                        const allyEl = getSlotCard(context.side, targetIdx);
+                        if (allyEl) animateCard(allyEl, 'animate-ability');
+                    } else {
+                        log(`${card.name.toUpperCase()} TRIED TO BUFF AN ALLY BUT NO TARGET WAS FOUND.`);
+                    }
+                    break;
+                }
+
                 case 'nexusHpToPowerUp':
                     const hpCost = amount; // The amount of Nexus HP to extract
                     const atkBonus = effect.atkGain || 0;
