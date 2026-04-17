@@ -1627,3 +1627,480 @@
             75%     { transform: translateY(-1px) translateX(1px); }
         }
         #vn-dialogue.vn-emotion-fear { animation: vn-tremble-fear 0.15s linear infinite; }
+        /* ══════════════════════════════════════════════════════════
+           ARENA ENHANCEMENTS — Ambient FX, Advanced Ability Anims
+           ══════════════════════════════════════════════════════════ */
+
+        /* ── ARENA AMBIENT BACKGROUND PULSE ───────────────────── */
+        @keyframes arena-ambient-breathe {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50%       { opacity: 0.6; transform: scale(1.02); }
+        }
+
+        /* Floating energy orbs in the background */
+        .arena-orb {
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(40px);
+            opacity: 0;
+            animation: arena-orb-float linear infinite;
+        }
+
+        @keyframes arena-orb-float {
+            0%   { transform: translateY(0px) translateX(0px); opacity: 0; }
+            10%  { opacity: 0.15; }
+            50%  { transform: translateY(-60px) translateX(30px); opacity: 0.25; }
+            90%  { opacity: 0.15; }
+            100% { transform: translateY(0px) translateX(0px); opacity: 0; }
+        }
+
+        /* ── ARENA ENERGY GRID LINES ──────────────────────────── */
+        @keyframes grid-scan {
+            0%   { transform: translateY(-100%); opacity: 0; }
+            10%  { opacity: 0.6; }
+            90%  { opacity: 0.6; }
+            100% { transform: translateY(100vh); opacity: 0; }
+        }
+
+        .arena-scan-line {
+            position: fixed;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(99,102,241,0.4), rgba(99,102,241,0.7), rgba(99,102,241,0.4), transparent);
+            pointer-events: none;
+            z-index: 1;
+            animation: grid-scan 8s linear infinite;
+        }
+
+        /* ── NEXUS HP BAR DANGER GLOW ─────────────────────────── */
+        @keyframes nexus-danger-pulse {
+            0%,100% { text-shadow: 0 0 10px rgba(239,68,68,0.8), 0 0 20px rgba(239,68,68,0.4); }
+            50%     { text-shadow: 0 0 20px rgba(239,68,68,1), 0 0 40px rgba(239,68,68,0.6), 0 0 60px rgba(239,68,68,0.3); }
+        }
+
+        .nexus-danger {
+            animation: nexus-danger-pulse 1s ease-in-out infinite !important;
+            color: #f87171 !important;
+        }
+
+        /* ── COMBO STRIKE EFFECT ──────────────────────────────── */
+        @keyframes combo-pop {
+            0%   { transform: scale(0) rotate(-15deg); opacity: 0; }
+            40%  { transform: scale(1.4) rotate(5deg); opacity: 1; }
+            70%  { transform: scale(1) rotate(-2deg); opacity: 1; }
+            100% { transform: scale(1.2) rotate(0deg); opacity: 0; }
+        }
+
+        .combo-label {
+            position: fixed;
+            pointer-events: none;
+            z-index: 99999;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 900;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            animation: combo-pop 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            color: #fbbf24;
+            text-shadow: 0 0 20px rgba(251,191,36,0.8), 2px 2px 0px rgba(0,0,0,0.9);
+            -webkit-text-stroke: 1px rgba(0,0,0,0.5);
+        }
+
+        /* ── HEAL WAVE EFFECT ─────────────────────────────────── */
+        @keyframes heal-ripple {
+            0%   { transform: scale(0.8); opacity: 0.8; border-width: 3px; }
+            100% { transform: scale(2.5); opacity: 0; border-width: 1px; }
+        }
+
+        .heal-ripple {
+            position: fixed;
+            border-radius: 50%;
+            border: 3px solid #4ade80;
+            pointer-events: none;
+            z-index: 9998;
+            box-shadow: 0 0 10px rgba(74,222,128,0.5), inset 0 0 10px rgba(74,222,128,0.2);
+            animation: heal-ripple 0.7s ease-out forwards;
+        }
+
+        /* ── SHIELD BLOCK BURST ───────────────────────────────── */
+        @keyframes shield-burst {
+            0%   { transform: scale(0.5) rotate(0deg); opacity: 1; }
+            50%  { transform: scale(1.3) rotate(180deg); opacity: 0.8; }
+            100% { transform: scale(2) rotate(360deg); opacity: 0; }
+        }
+
+        .shield-burst-particle {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            background: #4ade80;
+            pointer-events: none;
+            z-index: 99998;
+            box-shadow: 0 0 6px #4ade80;
+            animation: burst-particle 0.6s ease-out forwards;
+        }
+
+        /* ── SILENCE EFFECT ───────────────────────────────────── */
+        @keyframes silence-drape {
+            0%   { clip-path: inset(0 0 100% 0); opacity: 0; }
+            50%  { clip-path: inset(0 0 0 0); opacity: 0.9; }
+            80%  { clip-path: inset(0 0 0 0); opacity: 0.7; }
+            100% { clip-path: inset(0 0 0 0); opacity: 0; }
+        }
+
+        .silence-overlay {
+            position: fixed;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(100,116,139,0.7), rgba(71,85,105,0.9));
+            pointer-events: none;
+            z-index: 9997;
+            animation: silence-drape 0.8s ease-out forwards;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+        }
+
+        /* ── ABILITY ACTIVATION GLOW RING ─────────────────────── */
+        @keyframes ability-ring-expand {
+            0%   { transform: scale(0.7); opacity: 1; border-width: 4px; }
+            60%  { transform: scale(1.5); opacity: 0.6; border-width: 2px; }
+            100% { transform: scale(2.2); opacity: 0; border-width: 1px; }
+        }
+
+        .ability-ring {
+            position: fixed;
+            border-radius: 12px;
+            border: 4px solid #6366f1;
+            pointer-events: none;
+            z-index: 9997;
+            box-shadow: 0 0 20px rgba(99,102,241,0.6), inset 0 0 15px rgba(99,102,241,0.3);
+            animation: ability-ring-expand 0.6s ease-out forwards;
+        }
+
+        .ability-ring.heal  { border-color: #4ade80; box-shadow: 0 0 20px rgba(74,222,128,0.6); }
+        .ability-ring.dmg   { border-color: #f87171; box-shadow: 0 0 20px rgba(248,113,113,0.6); }
+        .ability-ring.buff  { border-color: #fbbf24; box-shadow: 0 0 20px rgba(251,191,36,0.6); }
+        .ability-ring.curse { border-color: #a855f7; box-shadow: 0 0 20px rgba(168,85,247,0.6); }
+        .ability-ring.silence { border-color: #64748b; box-shadow: 0 0 20px rgba(100,116,139,0.6); }
+
+        /* ── LIGHTNING BEAM BETWEEN CARDS ─────────────────────── */
+        .lightning-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 9996;
+        }
+
+        /* ── FIRE/BERSERK TRAIL ───────────────────────────────── */
+        @keyframes fire-particle {
+            0%   { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-60px) scale(0.2); opacity: 0; }
+        }
+
+        .fire-particle {
+            position: fixed;
+            width: 6px;
+            height: 10px;
+            border-radius: 50% 50% 20% 20%;
+            pointer-events: none;
+            z-index: 99998;
+            animation: fire-particle 0.6s ease-out forwards;
+        }
+
+        /* ── DEATH SHOCKWAVE ──────────────────────────────────── */
+        @keyframes death-shockwave {
+            0%   { transform: scale(0.5); opacity: 0.9; }
+            100% { transform: scale(3); opacity: 0; }
+        }
+
+        .death-shockwave {
+            position: fixed;
+            border-radius: 50%;
+            border: 3px solid #f87171;
+            pointer-events: none;
+            z-index: 9997;
+            box-shadow: 0 0 15px rgba(248,113,113,0.5);
+            animation: death-shockwave 0.5s ease-out forwards;
+        }
+
+        /* ── MANA CRYSTAL SPARKLE ─────────────────────────────── */
+        @keyframes mana-sparkle {
+            0%   { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; }
+            100% { transform: translate(var(--sx), var(--sy)) scale(0) rotate(var(--sr)); opacity: 0; }
+        }
+
+        .mana-sparkle {
+            position: fixed;
+            width: 5px;
+            height: 5px;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+            background: #818cf8;
+            pointer-events: none;
+            z-index: 99998;
+            animation: mana-sparkle 0.8s ease-out forwards;
+            box-shadow: 0 0 4px #818cf8;
+        }
+
+        /* ── CARD SLIDE-IN FROM HAND ──────────────────────────── */
+        @keyframes play-from-hand {
+            0%   { transform: translateY(80px) scale(0.85) rotate(-3deg); opacity: 0; filter: brightness(2); }
+            50%  { transform: translateY(-15px) scale(1.1) rotate(1deg); opacity: 1; filter: brightness(1.5); }
+            75%  { transform: translateY(4px) scale(0.98) rotate(-0.5deg); }
+            100% { transform: translateY(0) scale(1) rotate(0deg); filter: brightness(1); }
+        }
+
+        .card-nexus.is-playing {
+            animation: play-from-hand 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* ── HASTE DOUBLE STRIKE FLASH ────────────────────────── */
+        @keyframes haste-flash {
+            0%   { box-shadow: 0 0 0 0 rgba(251,191,36,0); }
+            30%  { box-shadow: 0 0 30px 10px rgba(251,191,36,0.7), inset 0 0 15px rgba(251,191,36,0.3); filter: brightness(1.5) saturate(1.5); }
+            100% { box-shadow: 0 0 0 0 rgba(251,191,36,0); filter: brightness(1); }
+        }
+
+        .card-nexus.animate-haste {
+            animation: haste-flash 0.4s ease-out forwards;
+        }
+
+        /* ── REFLECT REBOUND ──────────────────────────────────── */
+        @keyframes reflect-bounce {
+            0%   { transform: translateX(0) scale(1); filter: brightness(1); }
+            25%  { transform: translateX(-8px) scale(0.95); filter: brightness(0.8); }
+            50%  { transform: translateX(8px) scale(1.05); filter: brightness(2) hue-rotate(180deg); }
+            75%  { transform: translateX(-4px); }
+            100% { transform: translateX(0) scale(1); filter: brightness(1); }
+        }
+
+        .card-nexus.animate-reflect {
+            animation: reflect-bounce 0.5s ease-out forwards;
+        }
+
+        /* ── SNIPE CROSSHAIR ──────────────────────────────────── */
+        @keyframes crosshair-lock {
+            0%   { transform: scale(2) rotate(45deg); opacity: 0; }
+            40%  { transform: scale(1) rotate(0deg); opacity: 1; }
+            70%  { transform: scale(1) rotate(0deg); opacity: 1; }
+            100% { transform: scale(0.5) rotate(-45deg); opacity: 0; }
+        }
+
+        .snipe-crosshair {
+            position: fixed;
+            width: 50px;
+            height: 50px;
+            pointer-events: none;
+            z-index: 99999;
+            animation: crosshair-lock 0.7s ease-out forwards;
+        }
+
+        .snipe-crosshair::before,
+        .snipe-crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(248,113,113,0.9);
+            box-shadow: 0 0 8px rgba(248,113,113,0.8);
+        }
+
+        .snipe-crosshair::before {
+            left: 50%; top: 0; bottom: 0;
+            width: 2px;
+            transform: translateX(-50%);
+        }
+
+        .snipe-crosshair::after {
+            top: 50%; left: 0; right: 0;
+            height: 2px;
+            transform: translateY(-50%);
+        }
+
+        /* ── BATTLE INTENSITY VIGNETTE ────────────────────────── */
+        @keyframes vignette-pulse-red {
+            0%,100% { opacity: 0; }
+            50%     { opacity: 0.6; }
+        }
+
+        @keyframes vignette-pulse-blue {
+            0%,100% { opacity: 0; }
+            50%     { opacity: 0.4; }
+        }
+
+        .battle-vignette {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2;
+            border-radius: 0;
+        }
+
+        .battle-vignette.red {
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(239,68,68,0.25) 100%);
+            animation: vignette-pulse-red 0.5s ease-out forwards;
+        }
+
+        .battle-vignette.blue {
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(99,102,241,0.2) 100%);
+            animation: vignette-pulse-blue 0.4s ease-out forwards;
+        }
+
+        /* ── STEAL ATTACK ARROW ───────────────────────────────── */
+        @keyframes drain-float {
+            0%   { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(var(--dy)) translateX(var(--dx)) scale(0.4); opacity: 0; }
+        }
+
+        .drain-orb {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #fbbf24, #f59e0b);
+            pointer-events: none;
+            z-index: 99999;
+            box-shadow: 0 0 8px #fbbf24, 0 0 16px rgba(251,191,36,0.5);
+            animation: drain-float 0.6s ease-in forwards;
+        }
+
+        /* ── INVOKE / ROLL DICE POPUP ─────────────────────────── */
+        @keyframes roll-popup-in {
+            0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+            50%  { transform: scale(1.2) rotate(5deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        @keyframes roll-popup-out {
+            0%   { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.5) translateY(-40px); opacity: 0; }
+        }
+
+        .roll-popup {
+            position: fixed;
+            pointer-events: none;
+            z-index: 99999;
+            background: linear-gradient(135deg, rgba(13,11,22,0.95), rgba(30,27,50,0.95));
+            border: 2px solid #6366f1;
+            border-radius: 12px;
+            padding: 8px 14px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(99,102,241,0.5), 0 10px 30px rgba(0,0,0,0.8);
+        }
+
+        .roll-popup-dice {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 4px;
+        }
+
+        .roll-die {
+            width: 24px;
+            height: 24px;
+            background: rgba(99,102,241,0.2);
+            border: 1px solid rgba(99,102,241,0.5);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 900;
+            color: #a5b4fc;
+            animation: roll-popup-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .roll-die.best {
+            background: rgba(251,191,36,0.25);
+            border-color: #fbbf24;
+            color: #fbbf24;
+            box-shadow: 0 0 8px rgba(251,191,36,0.4);
+        }
+
+        .roll-result {
+            font-size: 10px;
+            font-weight: 800;
+            color: rgba(165,180,252,0.8);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        /* ── ENERGY FIELD LINES (when SS unit on board) ────────── */
+        @keyframes energy-line-sweep {
+            0%   { opacity: 0; transform: scaleX(0); }
+            20%  { opacity: 0.7; transform: scaleX(1); }
+            80%  { opacity: 0.7; transform: scaleX(1); }
+            100% { opacity: 0; transform: scaleX(1.2); }
+        }
+
+        /* ── BERSERK RAGE AURA ────────────────────────────────── */
+        @keyframes berserk-aura {
+            0%,100% { box-shadow: 0 0 8px 2px rgba(239,68,68,0.4); }
+            50%     { box-shadow: 0 0 20px 6px rgba(239,68,68,0.7), inset 0 0 8px rgba(239,68,68,0.2); }
+        }
+
+        .card-nexus.has-berserk-aura {
+            animation: berserk-aura 1.2s ease-in-out infinite, ready-pulse 1.8s ease-in-out infinite;
+            border-color: rgba(239,68,68,0.6) !important;
+        }
+
+        /* ── STEALTH / INVISIBLE SHIMMER ──────────────────────── */
+        @keyframes stealth-shimmer {
+            0%,100% { opacity: 0.3; filter: brightness(0.6) blur(1px); }
+            50%     { opacity: 0.6; filter: brightness(1.2) blur(0px); }
+        }
+
+        .card-nexus.is-invisible-state {
+            animation: stealth-shimmer 2s ease-in-out infinite;
+            border-style: dashed !important;
+            border-color: rgba(165,180,252,0.4) !important;
+        }
+
+        /* ── FLASH SCREEN FOR CRITICAL HITS ──────────────────── */
+        @keyframes screen-flash-white {
+            0%   { opacity: 0; }
+            15%  { opacity: 0.35; }
+            100% { opacity: 0; }
+        }
+
+        .screen-flash-overlay {
+            position: fixed;
+            inset: 0;
+            background: white;
+            pointer-events: none;
+            z-index: 99990;
+            animation: screen-flash-white 0.3s ease-out forwards;
+        }
+
+        /* ── ARENA IDLE PARTICLES ─────────────────────────────── */
+        @keyframes idle-mote {
+            0%   { transform: translateY(0) translateX(0); opacity: 0; }
+            10%  { opacity: 0.6; }
+            90%  { opacity: 0.3; }
+            100% { transform: translateY(-100px) translateX(var(--mx)); opacity: 0; }
+        }
+
+        .arena-mote {
+            position: fixed;
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+            animation: idle-mote linear infinite;
+        }
+
+        /* ── ENHANCE animate-hit-flicker: with screen crack ──── */
+        @keyframes hit-flicker-intense {
+            0%   { filter: brightness(1); }
+            15%  { filter: brightness(4) sepia(1) saturate(15) contrast(5) drop-shadow(0 0 30px red); transform: scale(1.05); }
+            40%  { filter: brightness(2) drop-shadow(0 0 10px red); }
+            100% { filter: brightness(1); transform: scale(1); }
+        }
+
+        .card-nexus.animate-hit-intense {
+            animation: hit-flicker-intense 0.45s ease-out forwards;
+        }

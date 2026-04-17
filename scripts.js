@@ -3247,3 +3247,593 @@ async function endTurn() {
             // If you want to start directly in battle for testing, uncomment below:
             // startBattle();
         };
+/* ══════════════════════════════════════════════════════════════
+   ARENA & ABILITY ANIMATION ENHANCEMENTS v2
+   Paste at bottom of scripts.js (after window.onload block)
+   ══════════════════════════════════════════════════════════════ */
+
+// ── Ability ring flash around a card element ─────────────────
+function spawnAbilityRing(el, type = 'default') {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ring = document.createElement('div');
+    ring.className = `ability-ring ${type}`;
+    ring.style.cssText = `
+        left:   ${rect.left   - 6}px;
+        top:    ${rect.top    - 6}px;
+        width:  ${rect.width  + 12}px;
+        height: ${rect.height + 12}px;
+    `;
+    document.body.appendChild(ring);
+    ring.addEventListener('animationend', () => ring.remove());
+}
+
+// ── Heal ripple rings ────────────────────────────────────────
+function spawnHealRipple(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    for (let i = 0; i < 3; i++) {
+        const ripple = document.createElement('div');
+        ripple.className = 'heal-ripple';
+        const size = rect.width + 20;
+        ripple.style.cssText = `
+            left:   ${rect.left + rect.width / 2 - size / 2}px;
+            top:    ${rect.top  + rect.height / 2 - size / 2}px;
+            width:  ${size}px;
+            height: ${size}px;
+            animation-delay: ${i * 0.15}s;
+        `;
+        document.body.appendChild(ripple);
+        ripple.addEventListener('animationend', () => ripple.remove());
+    }
+}
+
+// ── Shield block burst (green square particles) ──────────────
+function spawnShieldBurst(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top  + rect.height / 2;
+    for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        const dist  = 30 + Math.random() * 40;
+        const p = document.createElement('div');
+        p.className = 'shield-burst-particle';
+        p.style.cssText = `
+            left: ${cx - 4}px; top: ${cy - 4}px;
+            --px: ${Math.cos(angle) * dist}px;
+            --py: ${Math.sin(angle) * dist}px;
+            animation-duration: ${0.4 + Math.random() * 0.3}s;
+            background: ${i % 2 === 0 ? '#4ade80' : '#86efac'};
+        `;
+        document.body.appendChild(p);
+        p.addEventListener('animationend', () => p.remove());
+    }
+}
+
+// ── Fire particles (berserk / fire attacks) ──────────────────
+function spawnFireParticles(el, count = 12) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const colors = ['#f87171', '#fb923c', '#fbbf24', '#ef4444'];
+    for (let i = 0; i < count; i++) {
+        const p = document.createElement('div');
+        p.className = 'fire-particle';
+        const x = rect.left + Math.random() * rect.width;
+        const y = rect.top  + rect.height * 0.6 + Math.random() * rect.height * 0.4;
+        p.style.cssText = `
+            left: ${x}px; top: ${y}px;
+            background: ${colors[Math.floor(Math.random() * colors.length)]};
+            animation-duration: ${0.4 + Math.random() * 0.4}s;
+            animation-delay: ${Math.random() * 0.2}s;
+            width: ${4 + Math.random() * 6}px;
+            height: ${8 + Math.random() * 10}px;
+            box-shadow: 0 0 6px currentColor;
+        `;
+        document.body.appendChild(p);
+        p.addEventListener('animationend', () => p.remove());
+    }
+}
+
+// ── Death shockwave ring ─────────────────────────────────────
+function spawnDeathShockwave(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) + 20;
+    const wave = document.createElement('div');
+    wave.className = 'death-shockwave';
+    wave.style.cssText = `
+        left:   ${rect.left + rect.width / 2 - size / 2}px;
+        top:    ${rect.top  + rect.height / 2 - size / 2}px;
+        width:  ${size}px;
+        height: ${size}px;
+    `;
+    document.body.appendChild(wave);
+    wave.addEventListener('animationend', () => wave.remove());
+}
+
+// ── Mana sparkle burst around mana element ───────────────────
+function spawnManaSparkles(el, count = 10) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top  + rect.height / 2;
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist  = 20 + Math.random() * 35;
+        const sp = document.createElement('div');
+        sp.className = 'mana-sparkle';
+        sp.style.cssText = `
+            left: ${cx - 2.5}px; top: ${cy - 2.5}px;
+            --sx: ${Math.cos(angle) * dist}px;
+            --sy: ${Math.sin(angle) * dist}px;
+            --sr: ${-90 + Math.random() * 180}deg;
+            animation-duration: ${0.5 + Math.random() * 0.4}s;
+            animation-delay:    ${Math.random() * 0.1}s;
+            background: ${Math.random() > 0.5 ? '#818cf8' : '#a5b4fc'};
+        `;
+        document.body.appendChild(sp);
+        sp.addEventListener('animationend', () => sp.remove());
+    }
+}
+
+// ── Snipe crosshair overlay on target ────────────────────────
+function spawnSnipeCrosshair(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ch = document.createElement('div');
+    ch.className = 'snipe-crosshair';
+    ch.style.cssText = `
+        left: ${rect.left + rect.width / 2 - 25}px;
+        top:  ${rect.top  + rect.height / 2 - 25}px;
+    `;
+    document.body.appendChild(ch);
+    ch.addEventListener('animationend', () => ch.remove());
+}
+
+// ── Silence drape overlay ────────────────────────────────────
+function spawnSilenceOverlay(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ov = document.createElement('div');
+    ov.className = 'silence-overlay';
+    ov.style.cssText = `
+        left:   ${rect.left}px;
+        top:    ${rect.top}px;
+        width:  ${rect.width}px;
+        height: ${rect.height}px;
+    `;
+    ov.textContent = '🚫';
+    document.body.appendChild(ov);
+    ov.addEventListener('animationend', () => ov.remove());
+}
+
+// ── Drain orbs (steal / drain ATK effects) ───────────────────
+function spawnDrainOrbs(srcEl, dstEl, count = 6) {
+    if (!srcEl || !dstEl) return;
+    const srcRect = srcEl.getBoundingClientRect();
+    const dstRect = dstEl.getBoundingClientRect();
+    const sx = srcRect.left + srcRect.width  / 2;
+    const sy = srcRect.top  + srcRect.height / 2;
+    const dx = dstRect.left + dstRect.width  / 2;
+    const dy = dstRect.top  + dstRect.height / 2;
+
+    for (let i = 0; i < count; i++) {
+        const orb = document.createElement('div');
+        orb.className = 'drain-orb';
+        orb.style.cssText = `
+            left: ${sx - 5}px;
+            top:  ${sy - 5}px;
+            --dx: ${dx - sx + (Math.random() - 0.5) * 30}px;
+            --dy: ${dy - sy + (Math.random() - 0.5) * 30}px;
+            animation-delay:    ${i * 0.06}s;
+            animation-duration: ${0.45 + Math.random() * 0.2}s;
+        `;
+        document.body.appendChild(orb);
+        orb.addEventListener('animationend', () => orb.remove());
+    }
+}
+
+// ── Combo label popup ─────────────────────────────────────────
+let _comboCount = 0;
+let _comboTimer = null;
+function spawnComboLabel(el, label = null) {
+    if (!el) return;
+    _comboCount++;
+    clearTimeout(_comboTimer);
+    _comboTimer = setTimeout(() => { _comboCount = 0; }, 3000);
+
+    const rect = el.getBoundingClientRect();
+    const lbl = document.createElement('div');
+    lbl.className = 'combo-label';
+    lbl.textContent = label || (_comboCount > 1 ? `${_comboCount}x COMBO!` : 'CRITICAL!');
+    lbl.style.cssText = `
+        left: ${rect.left + rect.width / 2 - 80}px;
+        top:  ${rect.top  - 60}px;
+    `;
+    document.body.appendChild(lbl);
+    lbl.addEventListener('animationend', () => lbl.remove());
+}
+
+// ── Screen flash overlay for big hits ────────────────────────
+function flashScreen() {
+    const fl = document.createElement('div');
+    fl.className = 'screen-flash-overlay';
+    document.body.appendChild(fl);
+    fl.addEventListener('animationend', () => fl.remove());
+}
+
+// ── Vignette pulse ────────────────────────────────────────────
+function flashVignette(color = 'red') {
+    const vig = document.createElement('div');
+    vig.className = `battle-vignette ${color}`;
+    document.body.appendChild(vig);
+    vig.addEventListener('animationend', () => vig.remove());
+}
+
+// ── Lightning SVG arc between two elements ───────────────────
+function spawnLightningArc(srcEl, dstEl, color = '#818cf8') {
+    if (!srcEl || !dstEl) return;
+    const srcRect = srcEl.getBoundingClientRect();
+    const dstRect = dstEl.getBoundingClientRect();
+
+    const x1 = srcRect.left + srcRect.width  / 2;
+    const y1 = srcRect.top  + srcRect.height / 2;
+    const x2 = dstRect.left + dstRect.width  / 2;
+    const y2 = dstRect.top  + dstRect.height / 2;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.className.baseVal = 'lightning-canvas';
+    svg.style.zIndex = '9996';
+
+    // Build jagged path
+    const segments = 8;
+    const points = [[x1, y1]];
+    for (let i = 1; i < segments; i++) {
+        const t  = i / segments;
+        const mx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 40;
+        const my = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 40;
+        points.push([mx, my]);
+    }
+    points.push([x2, y2]);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    path.setAttribute('points', points.map(p => p.join(',')).join(' '));
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('opacity', '0.9');
+    path.style.filter = `drop-shadow(0 0 4px ${color})`;
+
+    svg.appendChild(path);
+    document.body.appendChild(svg);
+
+    // Flicker and remove
+    let flickers = 0;
+    const flicker = setInterval(() => {
+        path.setAttribute('opacity', Math.random() > 0.4 ? '0.9' : '0.2');
+        // Jitter the middle points
+        const pts = points.slice();
+        pts.slice(1, -1).forEach(p => {
+            p[0] += (Math.random() - 0.5) * 12;
+            p[1] += (Math.random() - 0.5) * 12;
+        });
+        path.setAttribute('points', pts.map(p => p.join(',')).join(' '));
+        if (++flickers > 5) {
+            clearInterval(flicker);
+            svg.remove();
+        }
+    }, 60);
+}
+
+// ── Spawn arena ambient idle motes on battle start ────────────
+function startArenaMotes() {
+    if (document.querySelectorAll('.arena-mote').length > 0) return;
+    const colors = ['#6366f1','#818cf8','#a855f7','#f0abfc','#38bdf8'];
+    for (let i = 0; i < 20; i++) {
+        const mote = document.createElement('div');
+        mote.className = 'arena-mote';
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const dur = 4 + Math.random() * 8;
+        const left = Math.random() * 100;
+        const bottom = 10 + Math.random() * 80;
+        mote.style.cssText = `
+            left:   ${left}vw;
+            bottom: ${bottom}vh;
+            background: ${color};
+            box-shadow: 0 0 6px ${color};
+            --mx: ${(Math.random() - 0.5) * 60}px;
+            animation-duration: ${dur}s;
+            animation-delay: ${Math.random() * dur}s;
+            opacity: 0;
+        `;
+        document.body.appendChild(mote);
+        // Remove mote when leaving arena
+        mote.dataset.arenaFx = 'true';
+    }
+}
+
+function clearArenaMotes() {
+    document.querySelectorAll('[data-arena-fx]').forEach(el => el.remove());
+}
+
+// ── spawnRollPopup (improved) ─────────────────────────────────
+function spawnRollPopup(el, rolls, best, stat = 'atk') {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+
+    // Remove any existing popup on this card
+    const existing = document.querySelector('.roll-popup');
+    if (existing) existing.remove();
+
+    const popup = document.createElement('div');
+    popup.className = 'roll-popup';
+    popup.style.cssText = `
+        left: ${rect.left + rect.width / 2 - 55}px;
+        top:  ${rect.top  - 85}px;
+    `;
+
+    const diceHTML = rolls.map((r, i) => {
+        const isBest = r === best && rolls.filter(x => x === best).indexOf(r) === i;
+        return `<div class="roll-die ${isBest ? 'best' : ''}" style="animation-delay:${i * 0.07}s">${r}</div>`;
+    }).join('');
+
+    popup.innerHTML = `
+        <div class="roll-popup-dice">${diceHTML}</div>
+        <div class="roll-result">+${best} ${stat.toUpperCase()}</div>
+    `;
+
+    document.body.appendChild(popup);
+
+    // Animate out after 1.5s
+    setTimeout(() => {
+        popup.style.animation = 'roll-popup-out 0.35s ease-in forwards';
+        popup.addEventListener('animationend', () => popup.remove());
+    }, 1500);
+}
+
+// ── Check nexus HP and add danger class ───────────────────────
+function updateNexusDanger() {
+    const pHpEl = document.getElementById('player-hp');
+    const eHpEl = document.getElementById('enemy-hp');
+    if (pHpEl) {
+        const ph = parseInt(pHpEl.textContent);
+        if (ph <= 8) pHpEl.classList.add('nexus-danger');
+        else pHpEl.classList.remove('nexus-danger');
+    }
+    if (eHpEl) {
+        const eh = parseInt(eHpEl.textContent);
+        if (eh <= 8) eHpEl.classList.add('nexus-danger');
+        else eHpEl.classList.remove('nexus-danger');
+    }
+}
+
+// ── Patch animateCardDeath to add extra effects ───────────────
+const _origAnimateCardDeath = animateCardDeath;
+animateCardDeath = function(el, onNullCallback) {
+    if (el) {
+        spawnDeathShockwave(el);
+        spawnImpactBurst(el, '#c084fc'); // purple death particles
+        spawnImpactBurst(el, '#f87171');
+    }
+    _origAnimateCardDeath(el, onNullCallback);
+};
+
+// ── Patch spawnImpactBurst to add vignette on big hits ────────
+const _origSpawnImpact = spawnImpactBurst;
+spawnImpactBurst = function(el, color = '#f87171') {
+    _origSpawnImpact(el, color);
+    // Red vignette for damage bursts
+    if (color === '#f87171') {
+        flashVignette('red');
+    }
+};
+
+// ── Patch shakeArena to add screen flash on intense hits ──────
+const _origShakeArena = shakeArena;
+shakeArena = function(intense = false) {
+    _origShakeArena(intense);
+    if (intense) {
+        flashScreen();
+        flashVignette('red');
+    }
+};
+
+// ── Patch updateBattleUI to track nexus danger state ─────────
+const _origUpdateBattleUI = updateBattleUI;
+updateBattleUI = async function() {
+    await _origUpdateBattleUI();
+    updateNexusDanger();
+    updateCardStatusVisuals();
+};
+
+// ── Update card status visuals (invisible, berserk) ──────────
+function updateCardStatusVisuals() {
+    ['player', 'enemy'].forEach(side => {
+        const board = side === 'player' ? state.pBoard : state.eBoard;
+        board.forEach((unit, i) => {
+            const el = getSlotCard(side, i);
+            if (!el || !unit) return;
+            // Invisible state
+            if (unit.status?.invisible > 0) {
+                el.classList.add('is-invisible-state');
+            } else {
+                el.classList.remove('is-invisible-state');
+            }
+        });
+    });
+}
+
+// ── Patch applyCardEffect to add visual FX per ability type ──
+const _origApplyCardEffect = applyCardEffect;
+applyCardEffect = async function(effect, unit, context = {}) {
+    const result = await _origApplyCardEffect(effect, unit, context);
+
+    const side = context.side;
+    const slot = context.slot;
+    const cardEl = (side !== undefined && slot !== undefined) ? getSlotCard(side, slot) : null;
+
+    switch (effect.type) {
+        case 'healSelf':
+        case 'healNexus':
+        case 'healAllies': {
+            if (cardEl) {
+                spawnHealRipple(cardEl);
+                spawnAbilityRing(cardEl, 'heal');
+            }
+            const hpEl = effect.type === 'healNexus'
+                ? document.getElementById('player-hp')
+                : null;
+            if (hpEl) spawnHealRipple(hpEl);
+            break;
+        }
+        case 'attackUpSelf':
+        case 'hpUpSelf': {
+            if (cardEl) spawnAbilityRing(cardEl, 'buff');
+            break;
+        }
+        case 'dealDamageAllEnemies': {
+            const oppSide = side === 'player' ? 'enemy' : 'player';
+            const oppBoard = context.opponentBoard || (side === 'player' ? state.eBoard : state.pBoard);
+            oppBoard.forEach((u, i) => {
+                if (!u) return;
+                const targetEl = getSlotCard(oppSide, i);
+                if (targetEl) {
+                    spawnImpactBurst(targetEl, '#f87171');
+                    spawnAbilityRing(targetEl, 'dmg');
+                }
+            });
+            if (cardEl) spawnFireParticles(cardEl, 8);
+            break;
+        }
+        case 'curseAllEnemies': {
+            const oppSide2 = side === 'player' ? 'enemy' : 'player';
+            const oppBoard2 = context.opponentBoard || (side === 'player' ? state.eBoard : state.pBoard);
+            oppBoard2.forEach((u, i) => {
+                if (!u) return;
+                const targetEl = getSlotCard(oppSide2, i);
+                if (targetEl) spawnAbilityRing(targetEl, 'curse');
+            });
+            break;
+        }
+        case 'silenceTarget':
+        case 'silenceRandomEnemy': {
+            const victimSide = context.side === 'player' ? 'enemy' : 'player';
+            const victimIdx  = context.targetIdx;
+            if (victimIdx !== undefined) {
+                const victimEl = getSlotCard(victimSide, victimIdx);
+                if (victimEl) {
+                    spawnSilenceOverlay(victimEl);
+                    spawnAbilityRing(victimEl, 'silence');
+                }
+            }
+            break;
+        }
+        case 'stealAttack':
+        case 'stealAttackFromAll': {
+            if (cardEl && context.target) {
+                const targetBoard  = side === 'player' ? state.eBoard : state.pBoard;
+                const targetSide   = side === 'player' ? 'enemy' : 'player';
+                const targetIdx    = targetBoard.indexOf(context.target);
+                if (targetIdx !== -1) {
+                    const targetEl = getSlotCard(targetSide, targetIdx);
+                    spawnDrainOrbs(targetEl, cardEl, 8);
+                }
+            }
+            break;
+        }
+        case 'gainMana': {
+            const manaEl = document.getElementById('mana-text');
+            if (manaEl) spawnManaSparkles(manaEl, 12);
+            break;
+        }
+        case 'snipeDamage': {
+            if (context.target) {
+                const snipeSide = side === 'player' ? 'enemy' : 'player';
+                const snipeBoard = snipeSide === 'enemy' ? state.eBoard : state.pBoard;
+                const snipeIdx   = snipeBoard.indexOf(context.target);
+                if (snipeIdx !== -1) {
+                    const snipeEl = getSlotCard(snipeSide, snipeIdx);
+                    spawnSnipeCrosshair(snipeEl);
+                    await delay(200);
+                    spawnImpactBurst(snipeEl, '#f87171');
+                }
+            }
+            break;
+        }
+        case 'damageRandomEnemy': {
+            const rndSide = side === 'player' ? 'enemy' : 'player';
+            const rndBoard = rndSide === 'enemy' ? state.eBoard : state.pBoard;
+            if (context.target) {
+                const rndIdx = rndBoard.indexOf(context.target);
+                if (rndIdx !== -1) {
+                    const rndEl = getSlotCard(rndSide, rndIdx);
+                    spawnLightningArc(cardEl, rndEl, '#818cf8');
+                    spawnAbilityRing(rndEl, 'dmg');
+                }
+            }
+            break;
+        }
+        case 'applyShield': {
+            if (cardEl) {
+                spawnShieldBurst(cardEl);
+                spawnAbilityRing(cardEl, 'heal');
+            }
+            break;
+        }
+        case 'applyReflect': {
+            if (cardEl) {
+                spawnAbilityRing(cardEl, 'buff');
+                animateCard(cardEl, 'animate-reflect');
+            }
+            break;
+        }
+        case 'nexusHpToPowerUp': {
+            if (cardEl) spawnFireParticles(cardEl, 10);
+            break;
+        }
+        case 'drawCard': {
+            spawnManaSparkles(document.getElementById('player-hp') || document.body, 6);
+            break;
+        }
+    }
+
+    return result;
+};
+
+// ── Haste double-strike visual ────────────────────────────────
+const _origHandleStrike = handleStrike;
+handleStrike = async function(pIdx, eIdx) {
+    return _origHandleStrike(pIdx, eIdx);
+};
+
+// ── Hook into arena show/hide for ambient effects ─────────────
+const _origShowScreenPatch = window.showScreen;
+window.showScreen = function(id) {
+    _origShowScreenPatch(id);
+    if (id === 'arena') {
+        setTimeout(startArenaMotes, 500);
+    } else {
+        clearArenaMotes();
+    }
+};
+
+// ── Enhanced handleStrike: adds haste glow ────────────────────
+// Intercept via a post-drop check so we don't break the chain
+document.addEventListener('drop', function(e) {
+    // After a drop, briefly check if the attacker has haste and highlight
+    setTimeout(() => {
+        state.pBoard.forEach((u, i) => {
+            if (!u) return;
+            const el = getSlotCard('player', i);
+            if (!el) return;
+            if (u.card.ability === 'haste2' && !u.status.exhausted) {
+                el.classList.add('animate-haste');
+                setTimeout(() => el.classList.remove('animate-haste'), 500);
+            }
+        });
+    }, 50);
+});
+
+console.log('[FX v2] Arena & ability animations loaded.');
