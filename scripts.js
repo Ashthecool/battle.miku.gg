@@ -1033,6 +1033,22 @@ lucide.createIcons();
                     }
                     break;
                 }
+                case 'atkUpAllAllies': {
+                    // NEW: Increases ATK for every unit on the acting unit's board
+                    const allies = context.board || (context.side === 'enemy' ? state.eBoard : state.pBoard);
+                    
+                    allies.forEach((u, idx) => {
+                        if (u && u.card) {
+                            u.card.atk += amount;
+                            log(`${u.card.name.toUpperCase()} GAINS +${amount} ATK.`);
+                            
+                            // Animate each ally receiving the buff
+                            const allyEl = getSlotCard(context.side, idx);
+                            if (allyEl) animateCard(allyEl, 'animate-ability');
+                        }
+                    });
+                    break;
+                }
 
         }
     }
@@ -1510,7 +1526,7 @@ lucide.createIcons();
 
             // --- FORCED MULTIPLE CARDS ---
                 // Add as many names as you want (up to 4)
-                const startingNames = [];
+                const startingNames = ["Amy Lyn"];
                 
                 startingNames.forEach(name => {
                     const found = ALL_CHARS.find(c => c.name === name);
