@@ -5,9 +5,9 @@ lucide.createIcons();
         const SUPABASE_KEY    = 'sb_publishable_oKPY6OIcovoVQlLZqBOLMg_skAxeCwp';
         const SUPABASE_BUCKET = 'card-images';
 
-        function supabaseStorageUrl(path) {
+        window.supabaseStorageUrl = function(path) {
             return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
-        }
+        };
 
         // Returns the .png URL directly — no async HEAD check needed.
         // img tags use onerror to fall back to .jpg if .png is missing.
@@ -120,7 +120,7 @@ lucide.createIcons();
                     }
 
                     // 5. Handle "And/Or" logic (success if count is greater than 0)
-                    const success = (scenario.type === 'and' || scenario.type === 'all' || scenario.type === 'or') 
+                    const success = (scenario.type === 'and' || scenario.type === 'all') 
                         ? counts.every(count => count > 0) 
                         : counts.some(count => count > 0);
 
@@ -163,18 +163,31 @@ lucide.createIcons();
 
             switch (effect.type) {
                 case 'healNexus':
-                    state.pHp = Math.min(30, state.pHp + amount);
-                    log(`${card.name.toUpperCase()} HEALS YOUR NEXUS FOR ${amount}.`);
-                    animateCard(document.getElementById('player-hp'), 'animate-heal');
-                    break;
-                case 'berserkOverflow':
-                    const overflow = Math.max(0, amount);
-                    if (overflow > 0) {
-                        state.eHp -= overflow;
-                        log(`BERSERK OVERFLOW: ${overflow} DMG TO ENEMY NEXUS`);
-                        animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                    if (context.side === 'enemy') {
+                        state.eHp = Math.min(30, state.eHp + amount);
+                        log(`${card.name.toUpperCase()} HEALS THE ENEMY NEXUS FOR ${amount}.`);
+                        animateCard(document.getElementById('enemy-hp'), 'animate-heal');
+                    } else {
+                        state.pHp = Math.min(30, state.pHp + amount);
+                        log(`${card.name.toUpperCase()} HEALS YOUR NEXUS FOR ${amount}.`);
+                        animateCard(document.getElementById('player-hp'), 'animate-heal');
                     }
                     break;
+                case 'berserkOverflow': {
+                    const overflow = Math.max(0, amount);
+                    if (overflow > 0) {
+                        if (context.side === 'enemy') {
+                            state.pHp -= overflow;
+                            log(`BERSERK OVERFLOW: ${overflow} DMG TO YOUR NEXUS`);
+                            animateCard(document.getElementById('player-hp'), 'animate-ability');
+                        } else {
+                            state.eHp -= overflow;
+                            log(`BERSERK OVERFLOW: ${overflow} DMG TO ENEMY NEXUS`);
+                            animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                        }
+                    }
+                    break;
+                }
                 case 'splashAdjacent':
                     [context.targetIdx - 1, context.targetIdx + 1].forEach(adj => {
                         if (context.board && context.board[adj]) {
@@ -187,7 +200,7 @@ lucide.createIcons();
                             }
                         }
                     });
-                    animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                    animateCard(document.getElementById(context.side === 'enemy' ? 'player-hp' : 'enemy-hp'), 'animate-ability');
                     break;
                 case 'silenceTarget':
                     const targetUnit = context.target || unit; // Use the target if provided, else the unit itself
@@ -209,12 +222,17 @@ lucide.createIcons();
                     if (context.target) {
                         context.target.status.exhausted = true;
                         log(`${context.target.card.name.toUpperCase()} IS DISABLED.`);
-                        if (context.targetIdx !== undefined) animateCard(getSlotCard('enemy', context.targetIdx), 'animate-ability');
+                        if (context.targetIdx !== undefined) {
+                            const disableSide = context.side === 'player' ? 'enemy' : 'player';
+                            animateCard(getSlotCard(disableSide, context.targetIdx), 'animate-ability');
+                        }
                     }
                     break;
                 case 'drawCard':
-                    for (let i = 0; i < Math.max(1, amount); i++) draw();
-                    log(`${card.name.toUpperCase()} DRAWS ${Math.max(1, amount)} CARD(S).`);
+                    if (context.side !== 'enemy') {
+                        for (let i = 0; i < Math.max(1, amount); i++) draw();
+                        log(`${card.name.toUpperCase()} DRAWS ${Math.max(1, amount)} CARD(S).`);
+                    }
                     break;
                 case 'healSelf':
                     const healed = Math.min(unit.card.maxHp, unit.card.hp + amount) - unit.card.hp;
@@ -243,8 +261,12 @@ lucide.createIcons();
                 case 'healAllies':
                     for (let i = 0; i < context.board.length; i++) {
                         if (context.board[i] && context.board[i].card) {
-                            context.board[i].card.hp += amount;
-                            log(`${context.board[i].card.name.toUpperCase()} HEALS FOR ${amount}.`);
+                            const ally = context.board[i].card;
+                            const healed = Math.min(ally.maxHp, ally.hp + amount) - ally.hp;
+                            if (healed > 0) {
+                                ally.hp += healed;
+                                log(`${ally.name.toUpperCase()} HEALS FOR ${healed}.`);
+                            }
                         }
                     }
                     break;
@@ -296,7 +318,8 @@ lucide.createIcons();
                     }
                     break;
                 
-                case 'discountHandBySeries': 
+                case 'discountHandBySeries':
+                    if (context.side === 'enemy') break; // Enemy has no hand to discount
                     let discountedCount = 0;
                     
                     // THE TOGGLE: Check if the effect specifies 'all' or if the series property is missing
@@ -339,8 +362,30 @@ lucide.createIcons();
 
                 case 'spawnCard':
                     if (context.side === 'enemy') {
-                        log(`${card.name.toUpperCase()} triggered a spawn, but enemies don't hold cards!`);
-                        break; 
+                        // Enemies have no hand — redirect to placing directly on the board
+                        const spawnNameE = effect.cardName;
+                        const spawnQtyE = resolveEffectValue(effect.amount || 1, card, context);
+                        const spawnTemplateE = ALL_CHARS.find(c => c.name === spawnNameE);
+                        if (spawnTemplateE) {
+                            let spawnedE = 0;
+                            for (let i = 0; i < spawnQtyE; i++) {
+                                const emptyIdx = state.eBoard.findIndex(slot => slot === null);
+                                if (emptyIdx !== -1) {
+                                    state.eBoard[emptyIdx] = {
+                                        card: cloneCard(spawnTemplateE),
+                                        status: { exhausted: true, justPlayed: true, silenced: false }
+                                    };
+                                    await triggerCardEvent('onPlay', state.eBoard[emptyIdx], {
+                                        slot: emptyIdx, side: 'enemy', board: state.eBoard
+                                    });
+                                    spawnedE++;
+                                }
+                            }
+                            if (spawnedE > 0) log(`${card.name.toUpperCase()} SUMMONED ${spawnedE} ${spawnNameE.toUpperCase()}(S) TO ENEMY BOARD.`);
+                        } else {
+                            console.warn(`Card to spawn not found: ${spawnNameE}`);
+                        }
+                        break;
                     }
 
                     const spawnName = effect.cardName;
@@ -510,11 +555,12 @@ lucide.createIcons();
                     break;
                 }
 
-                case 'nexusHpToPowerUp':
+                case 'nexusHpToPowerUp': {
                     const hpCost = amount; // The amount of Nexus HP to extract
                     const atkBonus = effect.atkGain || 0;
                     const hpBonus = effect.hpGain || 0;
-                    const targetNexus = effect.target || 'player'; // Which Nexus to extract from
+                    // Default to the acting unit's own nexus if no explicit target is set
+                    const targetNexus = effect.target || context.side || 'player';
 
                     // 1. Subtract the HP from the specified Nexus
                     if (targetNexus === 'player') {
@@ -536,6 +582,7 @@ lucide.createIcons();
                         animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
                     }
                     break;
+                }
                 
                 case 'applyInvincible':
                         // Initialize status if it doesn't exist, then add rounds
@@ -571,6 +618,7 @@ lucide.createIcons();
                     }
                     break;
                 case "gainMana":
+                    if (context.side === 'enemy') break; // Enemy has no mana pool
                     // 1. If the bonus 'amount' is already higher than our max cap, 
                     // we let it 'overflow' by setting mana directly to that amount.
                     if (amount > state.maxMana) {
@@ -661,7 +709,7 @@ lucide.createIcons();
                     const stat   = effect.stat  ?? 'atk';
                     const target = effect.target ?? 'self'; // 'self' | 'randomAlly' | 'allAllies'
 
-                    const applyRoll = (u, slotIdx) => {
+                    const applyRoll = async (u, slotIdx) => {
                         let best = 0;
                         const rolls = [];
                         for (let r = 0; r < tries; r++) {
@@ -671,7 +719,7 @@ lucide.createIcons();
                         }
 
                         const el = getSlotCard(context.side, slotIdx);
-                        sleep("100ms")
+                        await delay(100);
                         spawnRollPopup(el, rolls, best, stat);
 
                         if (stat === 'hp') {
@@ -689,16 +737,17 @@ lucide.createIcons();
                     const allies = context.board || (context.side === 'enemy' ? state.eBoard : state.pBoard);
 
                     if (target === 'allAllies') {
-                        allies.forEach((u, i) => { if (u && u.card) applyRoll(u, i); });
+                        const promises = allies.map((u, i) => u && u.card ? applyRoll(u, i) : Promise.resolve());
+                        await Promise.all(promises);
                     } else if (target === 'randomAlly') {
                         const alive = allies.map((u, i) => u ? { u, i } : null).filter(Boolean);
                         if (alive.length > 0) {
                             const pick = alive[Math.floor(Math.random() * alive.length)];
-                            applyRoll(pick.u, pick.i);
+                            await applyRoll(pick.u, pick.i);
                         }
                     } else {
                         // self (default)
-                        applyRoll(unit, context.slot);
+                        await applyRoll(unit, context.slot);
                     }
                     break;
                 }
@@ -741,6 +790,7 @@ lucide.createIcons();
                     break;
                 }
                 case 'manaDrain': {
+                    if (context.side === 'player') break; // Only enemy cards should drain player mana
                     const drain = Math.min(amount, state.maxMana - 1); // never below 1
                     if (drain > 0) {
                         state.maxMana -= drain;
@@ -750,6 +800,7 @@ lucide.createIcons();
                     break;
                 }
                 case 'manaSteal': {
+                    if (context.side === 'player') break; // Only enemy cards should steal player mana
                     const stolen = Math.min(amount, state.maxMana - 1);
                     if (stolen > 0) {
                         state.maxMana -= stolen;
@@ -975,16 +1026,81 @@ lucide.createIcons();
                 }
                 case 'damageNexus': {
                     // Damage the opposite nexus for the specified amount
-                    if (context.side === 'player') {
-                        // Player unit damages enemy nexus
+                    const target = effect.target || (context.side === 'player' ? 'enemy' : 'player');
+                    if (target === 'enemy') {
                         state.eHp -= amount;
                         log(`${card.name.toUpperCase()} DEALS ${amount} DAMAGE TO ENEMY NEXUS!`);
                         animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                        spawnDamagePopup(document.getElementById('enemy-hp'), `-${amount}`, 'dmg');
+                        shakeArena(true);
                     } else {
-                        // Enemy unit damages player nexus
                         state.pHp -= amount;
                         log(`${card.name.toUpperCase()} DEALS ${amount} DAMAGE TO YOUR NEXUS!`);
                         animateCard(document.getElementById('player-hp'), 'animate-ability');
+                        spawnDamagePopup(document.getElementById('player-hp'), `-${amount}`, 'dmg');
+                    }
+                    break;
+                }
+
+                case 'nexusSwapHp': {
+                    // Swap the HP of both nexuses - Witch Mother Kirsti ultimate ability
+                    const pHpBefore = state.pHp;
+                    const eHpBefore = state.eHp;
+                    
+                    state.pHp = eHpBefore;
+                    state.eHp = pHpBefore;
+                    
+                    log(`${card.name.toUpperCase()} — NEXUS SWAP! Your HP: ${pHpBefore} → ${state.pHp} | Enemy HP: ${eHpBefore} → ${state.eHp}!`);
+                    
+                    // Epic visual effects
+                    if (cardEl) {
+                        spawnFireParticles(cardEl, 20);
+                        flashScreen();
+                        flashVignette('purple');
+                        spawnLightningArc(cardEl, document.getElementById('player-hp') || document.body, '#9333ea');
+                        spawnLightningArc(cardEl, document.getElementById('enemy-hp') || document.body, '#9333ea');
+                    }
+                    
+                    animateCard(document.getElementById('player-hp'), 'animate-ability');
+                    animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                    shakeArena(true);
+                    break;
+                }
+
+                case 'damageNexusPerAttackLowered': {
+                    // Apex Arachnea Kirsti: For every attack point lowered from enemies, deal damage to enemy nexus
+                    const attackValue = effect.attackValue || unit.card.atk;
+                    const enemyBoard = getOpposingBoard(context);
+                    let totalLowered = 0;
+                    
+                    enemyBoard.forEach(u => {
+                        if (u && u.card && u.card.atk > 0) {
+                            const lowered = Math.min(attackValue, u.card.atk);
+                            u.card.atk -= lowered;
+                            totalLowered += lowered;
+                        }
+                    });
+                    
+                    if (totalLowered > 0) {
+                        if (context.side === 'player') {
+                            state.eHp -= totalLowered;
+                            log(`${card.name.toUpperCase()} — APEX ARACHNEA: Lowered ${totalLowered} ATK, dealing ${totalLowered} to enemy Nexus!`);
+                            animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                            spawnDamagePopup(document.getElementById('enemy-hp'), `-${totalLowered}`, 'dmg');
+                            shakeArena(true);
+                        } else {
+                            state.pHp -= totalLowered;
+                            log(`${card.name.toUpperCase()} — APEX ARACHNEA: Lowered ${totalLowered} ATK, dealing ${totalLowered} to your Nexus!`);
+                            animateCard(document.getElementById('player-hp'), 'animate-ability');
+                            spawnDamagePopup(document.getElementById('player-hp'), `-${totalLowered}`, 'dmg');
+                        }
+                        
+                        // Visual: purple lightning arcs to all affected enemies then to nexus
+                        if (cardEl) {
+                            spawnLightningArc(cardEl, document.getElementById(context.side === 'player' ? 'enemy-hp' : 'player-hp'), '#9333ea');
+                            spawnFireParticles(cardEl, 15);
+                            flashVignette('purple');
+                        }
                     }
                     break;
                 }
@@ -1057,6 +1173,630 @@ lucide.createIcons();
         await delay(duration); // Wait for the text to type out and linger
     }
 
+        // ═══════════════════════════════════════════════════════════════════════
+        // LEGENDARY PASSIVE SYSTEM
+        // Each legendary card has a unique passive that fires on every game event.
+        // These are coded in JS (not JSON) because they can read full board state,
+        // react to other units' events, and use logic too complex for data-driven effects.
+        // Rules:
+        //   - Passives fire AFTER the triggering unit's own abilities resolve.
+        //   - Silenced legendaries lose their passive for the duration.
+        //   - dyingUnit in context = the unit whose event triggered this sweep
+        //     (used by passives that react to allies dying, being attacked, etc.)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        const LEGENDARY_PASSIVES = {
+
+            // ── Diana Bullen (New Haven) ────────────────────────────────────────
+            // COMPOUND FORMULA: When Diana kills an enemy, she draws 1 card and
+            // all allies gain +1 ATK for the rest of the turn. Every destruction
+            // is data. Every death is a formula she's already solved.
+            'Diana Bullen': async function(unit, eventName, context) {
+                if (eventName !== 'onDeath') return;
+                const dyingUnit = context.dyingUnit;
+                if (!dyingUnit || dyingUnit === unit) return;
+                // Only fires if Diana was the one who killed them (attacker context)
+                if (context.killedBy !== unit) return;
+                draw();
+                log(`DIANA BULLEN — COMPOUND FORMULA: Kill confirmed. Drawing 1 card and triggering dimensional reaction!`);
+                const board = context.side === 'enemy' ? state.eBoard : state.pBoard;
+                board.forEach((slot, idx) => {
+                    if (!slot || !slot.card) return;
+                    slot.card.atk += 1;
+                    const el = getSlotCard(context.side, idx);
+                    if (el) { spawnAbilityRing(el, 'buff'); animateCard(el, 'animate-ability'); }
+                });
+                log(`DIANA BULLEN — COMPOUND FORMULA: All allies +1 ATK from the reaction!`);
+            },
+
+            // ── Marija (New Haven) ──────────────────────────────────────────────
+            // IRON DIRECTOR: Whenever an ally dies, Marija refuses to be shaken.
+            // She permanently gains +1 ATK and heals herself for 2 HP.
+            // Grief becomes fuel. Loss becomes command.
+            'Marija': async function(unit, eventName, context) {
+                if (eventName !== 'onDeath') return;
+                const dyingUnit = context.dyingUnit;
+                if (!dyingUnit || dyingUnit === unit) return;
+                unit.card.atk += 1;
+                unit.card.hp = Math.min(unit.card.maxHp, unit.card.hp + 2);
+                log(`MARIJA — IRON DIRECTOR: ${dyingUnit.card.name.toUpperCase()} falls. Marija grows colder. (+1 ATK, +2 HP | Now ${unit.card.atk} ATK, ${unit.card.hp} HP)`);
+                const el = getSlotCard(context.side, context.slot);
+                if (el) { spawnAbilityRing(el, 'buff'); spawnHealRipple(el); }
+            },
+
+            // ── Maria Hunley (Adoptive Life) ────────────────────────────────────
+            // NO CHILD LEFT BEHIND: Whenever any ally drops to 3 HP or below,
+            // Maria immediately heals that ally for 3 HP. She always senses
+            // when one of hers needs her. Once per turn per ally.
+            'Maria Hunley': async function(unit, eventName, context) {
+                if (eventName !== 'whenAttacked') return;
+                const attackedUnit = context.dyingUnit;
+                if (!attackedUnit || attackedUnit === unit) return;
+                if (attackedUnit.card.hp > 3) return; // Only triggers at 3 HP or below
+                // Track who was already saved this turn to avoid repeat healing
+                unit.status = unit.status || {};
+                unit.status._mariaHealedThisTurn = unit.status._mariaHealedThisTurn || new Set();
+                const uid = attackedUnit.card.name;
+                if (unit.status._mariaHealedThisTurn.has(uid)) return;
+                unit.status._mariaHealedThisTurn.add(uid);
+                const healed = Math.min(attackedUnit.card.maxHp, attackedUnit.card.hp + 3) - attackedUnit.card.hp;
+                if (healed > 0) {
+                    attackedUnit.card.hp += healed;
+                    log(`MARIA HUNLEY — NO CHILD LEFT BEHIND: Rushes to ${attackedUnit.card.name.toUpperCase()}! (+${healed} HP — now ${attackedUnit.card.hp} HP)`);
+                    const board = context.side === 'enemy' ? state.eBoard : state.pBoard;
+                    const idx = board.indexOf(attackedUnit);
+                    if (idx !== -1) {
+                        const allyEl = getSlotCard(context.side, idx);
+                        if (allyEl) { spawnHealRipple(allyEl); animateCard(allyEl, 'animate-heal'); }
+                    }
+                    const mariaEl = getSlotCard(context.side, context.slot);
+                    if (mariaEl) spawnAbilityRing(mariaEl, 'heal');
+                }
+            },
+
+            // ── Hayley (Adoptive Life) ──────────────────────────────────────────
+            // INFINITE ENERGY: Every time Hayley heals any unit or the Nexus
+            // (from any trigger she fires), she permanently gains +1 ATK.
+            // She doesn't run out. She just gets more. There is no cap.
+            'Hayley': async function(unit, eventName, context) {
+                if (eventName !== 'onPlay' && eventName !== 'onTurnStart' && eventName !== 'onTurnEnd') return;
+                // Count heal effects that Hayley has in this event
+                const healsInEvent = (unit.card.abilities?.[eventName] || []).filter(e =>
+                    e.type === 'healNexus' || e.type === 'healAllies' || e.type === 'healSelf'
+                ).length;
+                if (healsInEvent === 0) return;
+                unit.card.atk += healsInEvent;
+                log(`HAYLEY — INFINITE ENERGY: Healed ${healsInEvent} time(s) this trigger! +${healsInEvent} ATK permanently. (Now ${unit.card.atk} ATK)`);
+                const el = getSlotCard(context.side, context.slot);
+                if (el) { spawnAbilityRing(el, 'buff'); animateCard(el, 'animate-ability'); }
+            },
+
+            // ── Helga (Atarashī gakkō; Secret Garden!) ─────────────────────────
+            // RULE OF SILENCE: At the start of each turn, Helga strips 1 ATK
+            // from the highest-ATK enemy. While alive, enemies cannot gain ATK
+            // buffs — her authority erodes what it cannot control.
+            'Helga': async function(unit, eventName, context) {
+                if (eventName === 'onTurnStart') {
+                    // Strip 1 ATK from highest-ATK enemy
+                    const oppBoard = context.side === 'enemy' ? state.pBoard : state.eBoard;
+                    const oppSide  = context.side === 'enemy' ? 'player' : 'enemy';
+                    const candidates = oppBoard.map((s, i) => s && s.card ? { s, i } : null).filter(Boolean);
+                    if (candidates.length === 0) return;
+                    const { s: target, i: idx } = candidates.reduce(
+                        (best, cur) => cur.s.card.atk > best.s.card.atk ? cur : best,
+                        candidates[0]
+                    );
+                    if (target.card.atk > 0) {
+                        target.card.atk = Math.max(0, target.card.atk - 1);
+                        log(`HELGA — RULE OF SILENCE: Strips 1 ATK from ${target.card.name.toUpperCase()}. (Now ${target.card.atk} ATK)`);
+                        const el = getSlotCard(oppSide, idx);
+                        if (el) spawnSilenceOverlay(el);
+                    }
+                }
+                // The ATK-buff suppression is handled by the existing silenceRandomEnemy
+                // and curseAllEnemies on play — this passive covers the per-turn strip.
+            },
+
+            // ── Hina (Original) ─────────────────────────────────────────────────
+            // SOUL CHARM: Every time Hina attacks, the target is Charmed —
+            // silenced for 1 turn AND marked so it cannot deal damage to Hina
+            // specifically for that turn. No soul resists her. She never asked for it.
+            'Hina': async function(unit, eventName, context) {
+                if (eventName !== 'onAttack') return;
+                const target = context.target;
+                if (!target || !target.card) return;
+                target.status = target.status || {};
+                // Silence 1 turn (charm)
+                target.status.silenced = (target.status.silenced || 0) + 1;
+                // Mark as charmed — prevents them attacking Hina (checked in combat logic)
+                target.status.charmedBy = unit.card.name;
+                log(`HINA — SOUL CHARM: ${target.card.name.toUpperCase()} is CHARMED! Silenced and cannot strike Hina this turn.`);
+                const oppBoard = context.side === 'player' ? state.eBoard : state.pBoard;
+                const oppSide  = context.side === 'player' ? 'enemy' : 'player';
+                const idx = oppBoard.indexOf(target);
+                if (idx !== -1) {
+                    const el = getSlotCard(oppSide, idx);
+                    if (el) { spawnSilenceOverlay(el); spawnAbilityRing(el, 'curse'); }
+                }
+            },
+
+            // ── Saya (Original) ─────────────────────────────────────────────────
+            // THREAT ASSESSMENT: At the start of every turn, Saya's AI auto-scans
+            // the battlefield and silences the highest-ATK enemy for 1 turn.
+            // She already calculated every outcome. She was never going to let them move first.
+            'Saya': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                const oppBoard = context.side === 'player' ? state.eBoard : state.pBoard;
+                const oppSide  = context.side === 'player' ? 'enemy' : 'player';
+                const candidates = oppBoard.map((s, i) => s && s.card ? { s, i } : null).filter(Boolean);
+                if (candidates.length === 0) return;
+                const { s: target, i: idx } = candidates.reduce(
+                    (best, cur) => cur.s.card.atk > best.s.card.atk ? cur : best,
+                    candidates[0]
+                );
+                target.status = target.status || {};
+                target.status.silenced = (target.status.silenced || 0) + 1;
+                log(`SAYA — THREAT ASSESSMENT: ${target.card.name.toUpperCase()} identified as primary threat. Silenced.`);
+                const el = getSlotCard(oppSide, idx);
+                if (el) { spawnSilenceOverlay(el); spawnAbilityRing(el, 'silence'); }
+            },
+
+            // ── Daphne (Legend Of You) ──────────────────────────────────────────
+            // EXTINCTION PROTOCOL: At the end of each turn, Daphne gains +1 ATK
+            // and deals 1 direct damage to the enemy Nexus. She doesn't need to
+            // win fights. She just needs to wait. The annihilation was scheduled.
+            'Daphne': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnEnd') return;
+                unit.card.atk += 1;
+                // Deal 1 direct Nexus damage to the opponent
+                if (context.side === 'player') {
+                    state.eHp -= 1;
+                    log(`DAPHNE — EXTINCTION PROTOCOL: +1 ATK. Deals 1 direct damage to enemy Nexus. (Enemy Nexus: ${state.eHp} HP)`);
+                    animateCard(document.getElementById('enemy-hp'), 'animate-ability');
+                } else {
+                    state.pHp -= 1;
+                    log(`DAPHNE — EXTINCTION PROTOCOL: +1 ATK. Deals 1 direct damage to your Nexus. (Your Nexus: ${state.pHp} HP)`);
+                    animateCard(document.getElementById('player-hp'), 'animate-ability');
+                }
+                const el = getSlotCard(context.side, context.slot);
+                if (el) { spawnFireParticles(el, 6); animateCard(el, 'animate-ability'); }
+            },
+
+            // ── Shogun Kagetora (Bloodlines) ────────────────────────────────────
+            // WARRIOR'S FORMATION: Whenever any ally attacks while Kagetora is on
+            // the board, that ally permanently gains +1 ATK. He trains them in the
+            // moment. Every strike made in his presence is sharper than the last.
+            'Shogun Kagetora': async function(unit, eventName, context) {
+                if (eventName !== 'onAttack') return;
+                const attackingUnit = context.dyingUnit; // dyingUnit = the unit whose event fired
+                if (!attackingUnit || attackingUnit === unit) return;
+                attackingUnit.card.atk += 1;
+                log(`SHOGUN KAGETORA — WARRIOR'S FORMATION: ${attackingUnit.card.name.toUpperCase()} trained in battle! (+1 ATK | Now ${attackingUnit.card.atk} ATK)`);
+                const board = context.side === 'enemy' ? state.eBoard : state.pBoard;
+                const idx = board.indexOf(attackingUnit);
+                if (idx !== -1) {
+                    const el = getSlotCard(context.side, idx);
+                    if (el) { spawnAbilityRing(el, 'buff'); animateCard(el, 'animate-ability'); }
+                }
+            },
+
+            // ── Princess Beatrice (Dumb Super Fantasy RPG) ──────────────────────
+            // ESSENTIA SURGE: While Beatrice is alive, both CEDERE and FERMO on
+            // the board gain +1 ATK at the start of each turn — she empowers her
+            // Avalistos with her living presence. (Unchanged — already perfect.)
+            'Princess Beatrice': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                const board = context.side === 'enemy' ? state.eBoard : state.pBoard;
+                let buffed = 0;
+                board.forEach((slot, idx) => {
+                    if (!slot || !slot.card) return;
+                    if (slot.card.name === 'CEDERE' || slot.card.name === 'FERMO') {
+                        slot.card.atk += 1;
+                        buffed++;
+                        const el = getSlotCard(context.side, idx);
+                        if (el) spawnAbilityRing(el, 'buff');
+                    }
+                });
+                if (buffed > 0) log(`PRINCESS BEATRICE — ESSENTIA SURGE: Empowers ${buffed} Avalistos with +1 ATK!`);
+            },
+
+            // ── Witch Morganarlisa (Medieval Adventure Novel) ───────────────────
+            // ROTTING CURSE: At the end of each turn, every enemy on the board
+            // loses 1 HP (this cannot kill). She makes them tender. She doesn't
+            // need to eat them immediately. She just needs them ready.
+            'Witch Morganarlisa': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnEnd') return;
+                const oppBoard = context.side === 'enemy' ? state.pBoard : state.eBoard;
+                const oppSide  = context.side === 'enemy' ? 'player' : 'enemy';
+                let cursed = 0;
+                oppBoard.forEach((slot, idx) => {
+                    if (!slot || !slot.card) return;
+                    if (slot.card.hp > 1) { // Cannot kill — minimum 1 HP
+                        slot.card.hp -= 1;
+                        cursed++;
+                        const el = getSlotCard(oppSide, idx);
+                        if (el) spawnAbilityRing(el, 'curse');
+                    }
+                });
+                if (cursed > 0) log(`WITCH MORGANARLISA — ROTTING CURSE: Dark magic seeps into ${cursed} enemy/enemies. (-1 HP each)`);
+            },
+
+            // ── Anna Vinelace (Noble One) ───────────────────────────────────────
+            // OPEN HAND: Whenever Anna triggers a buff or heal for an ally
+            // (onPlay or onTurnStart effects that helped others), she draws 1 card.
+            // Her generosity is infectious and always returns to her.
+            'Anna Vinelace': async function(unit, eventName, context) {
+                if (eventName !== 'onPlay' && eventName !== 'onTurnStart') return;
+                const buffHealsInEvent = (unit.card.abilities?.[eventName] || []).filter(e =>
+                    e.type === 'atkUpAllAllies' || e.type === 'giveAllAlliesEffect' ||
+                    e.type === 'healAllies' || e.type === 'healSelf'
+                ).length;
+                if (buffHealsInEvent === 0) return;
+                if (context.side !== 'enemy') draw();
+                log(`ANNA VINELACE — OPEN HAND: Generosity returns — draws 1 card.`);
+                const el = getSlotCard(context.side, context.slot);
+                if (el) { spawnManaSparkles(el, 8); animateCard(el, 'animate-ability'); }
+            },
+
+            // ── Amy Lyn (Everythin' with Amy Lyn) ──────────────────────────────
+            // STAR POWER: At the start of each turn, Amy Lyn gains +1 ATK and
+            // +1 Max HP for every Amy Lyn variant on the board with her —
+            // the more of herself there are, the stronger she becomes. (Unchanged.)
+            'Amy Lyn': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                const board = context.side === 'enemy' ? state.eBoard : state.pBoard;
+                const variants = board.filter(slot =>
+                    slot && slot.card &&
+                    slot !== unit &&
+                    slot.card.series === "Everythin' with Amy Lyn"
+                ).length;
+                if (variants === 0) return;
+                unit.card.atk += variants;
+                unit.card.maxHp += variants;
+                unit.card.hp = Math.min(unit.card.hp + variants, unit.card.maxHp);
+                log(`AMY LYN — STAR POWER: +${variants} ATK & +${variants} Max HP from ${variants} variant(s)!`);
+                const el = getSlotCard(context.side, context.slot);
+                if (el) { spawnAbilityRing(el, 'buff'); spawnHealRipple(el); }
+            },
+
+            // ── Kumi (Original) ─────────────────────────────────────────────────
+            // DIVINE RESTRAINT: While Kumi is silenced, she becomes untargetable.
+            // Enemies cannot choose to attack her and she cannot be the target of
+            // abilities. Her silence is not weakness. It is the deepest protection.
+            'Kumi': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart' && eventName !== 'onTurnEnd') return;
+                unit.status = unit.status || {};
+                const isSilenced = (unit.status.silenced || 0) > 0;
+                if (isSilenced) {
+                    // Grant untargetable (reuse invisible status — already blocks targeting)
+                    unit.status.invisible = Math.max(unit.status.invisible || 0, 1);
+                    log(`KUMI — DIVINE RESTRAINT: Silenced and resting — becomes untargetable. Her stillness is sacred.`);
+                    const el = getSlotCard(context.side, context.slot);
+                    if (el) el.classList.add('is-invisible-state');
+                } else {
+                    // When no longer silenced, remove the untargetable flag if it was set by this passive
+                    // (only remove if HP is positive — she's back)
+                    if ((unit.status.invisible || 0) > 0) {
+                        unit.status.invisible = 0;
+                        const el = getSlotCard(context.side, context.slot);
+                        if (el) el.classList.remove('is-invisible-state');
+                        log(`KUMI — DIVINE RESTRAINT: Silence lifted — Kumi returns to the field.`);
+                    }
+                }
+            },
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // KIRSTI — THE SHAPESHIFTER LEGENDARY
+            // Kirsti is a shapeshifter that evolves based on how long she survives:
+            // • Kitty Date Kirsti: 1/1 Haste, On Death: Adds Kirsti to hand (4-cost)
+            // • Clever Kitsune Kirsti: 1/1 Echo, On Play: +2 Max HP to all allies
+            // • Queen Bee Kirsti: 2/3 Guard, Counter Attacks, +1 ATK to all allies
+            // • Matriarch Hyena Kirsti: 4/2 Berserk, On Hit: Draw 2, On Death: Spawn Kitty Date Kirsti
+            // • Apex Arachnea Kirsti: 5/5, Lowers enemy ATK by self, deals to Nexus per point
+            // • Abyssal Priestress Kirsti: 6/6 Guard, Invincible to counters, ignores Guard 2 turns
+            // • Witch Mother Kirsti: 10/10, Swaps Nexus HP with enemy Nexus
+            // • Post Mortem Kirsti: 5/1 Echo, On Turn Start: Enemy Nexus -4 HP, all allies +4 Max HP
+            // ═══════════════════════════════════════════════════════════════════════
+
+            // Get turns alive for Kirsti unit
+            getKirstiTurnsAlive: function(unit) {
+                return unit.status?.kirstiTurnsAlive || 0;
+            },
+
+            // Sets up Kirsti on the board — called when any Kirsti variant is played
+            setupKirstiUnit: function(unit, context) {
+                unit.status = unit.status || {};
+                unit.status.kirstiTurnsAlive = 0;
+                unit.status.kirstiVariant = 'Kitty Date Kirsti';
+                log(`KIRSTI — Shape-shifting begins: Kitty Date Kirsti appears. (1 turn)`);
+                const el = getSlotCard(context.side, context.slot);
+                if (el) {
+                    el.classList.add('kirsti-kitty');
+                    setTimeout(() => el.classList.remove('kirsti-kitty'), 1500);
+                }
+            },
+
+            // Kirsti on turn start — increment counter and check for evolution
+            'Kirsti - Kitty Date Kirsti': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                unit.status.kirstiTurnsAlive = (unit.status.kirstiTurnsAlive || 0) + 1;
+                const turns = unit.status.kirstiTurnsAlive;
+                
+                // Evolution at turn 1 → Clever Kitsune Kirsti
+                if (turns === 1 && unit.card.name === 'Kirsti') {
+                    // Evolve into Clever Kitsune Kirsti
+                    const oldAtk = unit.card.atk;
+                    const oldHp = unit.card.hp;
+                    const oldMaxHp = unit.card.maxHp;
+                    
+                    unit.card.name = 'Clever Kitsune Kirsti';
+                    unit.card.atk = 1;
+                    unit.card.hp = 1;
+                    unit.card.maxHp = 1;
+                    unit.card.cost = 0;
+                    unit.status.kirstiVariant = 'Clever Kitsune Kirsti';
+                    unit.card.abilities = {
+                        onPlay: [
+                            { type: 'giveAllAlliesEffect', effect: { type: 'hpUpSelf', value: 2 } }
+                        ],
+                        onDeath: [
+                            { type: 'spawnCard', cardName: 'Kirsti', amount: 1 }
+                        ]
+                    };
+                    
+                    log(`KIRSTI — KITTY DATE EVOLVES → CLEVER KITSUNE KIRSTI! (1/1 → 1/1 | +2 Max HP to all on play)`);
+                    const el = getSlotCard(context.side, context.slot);
+                    if (el) {
+                        el.classList.add('kirsti-evolve-kitsune');
+                        el.querySelector('.card-name')?.remove();
+                        spawnAbilityRing(el, 'heal');
+                        animateCard(el, 'animate-legendary-transform');
+                    }
+                }
+            },
+
+            'Kirsti - Clever Kitsune Kirsti': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                unit.status.kirstiTurnsAlive = (unit.status.kirstiTurnsAlive || 0) + 1;
+                const turns = unit.status.kirstiTurnsAlive;
+                
+                // Evolution at turns 2-3 → Queen Bee Kirsti
+                if (turns >= 2 && turns <= 3 && unit.card.name === 'Clever Kitsune Kirsti') {
+                    unit.card.name = 'Queen Bee Kirsti';
+                    unit.card.atk = 2;
+                    unit.card.hp = 3;
+                    unit.card.maxHp = 3;
+                    unit.card.ability = 'guard';
+                    unit.status.kirstiVariant = 'Queen Bee Kirsti';
+                    unit.card.abilities = {
+                        onPlay: [
+                            { type: 'giveAllAlliesEffect', effect: { type: 'attackUpSelf', value: 1 } }
+                        ],
+                        onDeath: [
+                            { type: 'spawnCard', cardName: 'Kirsti', amount: 1 }
+                        ]
+                    };
+                    
+                    log(`KIRSTI — CLEVER KITSUNE EVOLVES → QUEEN BEE KIRSTI! (1/1 → 2/3 Guard | +1 ATK all allies)`);
+                    const el = getSlotCard(context.side, context.slot);
+                    if (el) {
+                        el.classList.add('kirsti-evolve-queen');
+                        spawnAbilityRing(el, 'buff');
+                        animateCard(el, 'animate-legendary-transform');
+                    }
+                }
+            },
+
+            'Kirsti - Queen Bee Kirsti': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                unit.status.kirstiTurnsAlive = (unit.status.kirstiTurnsAlive || 0) + 1;
+                const turns = unit.status.kirstiTurnsAlive;
+                
+                // Evolution at turns 4-5 → Matriarch Hyena Kirsti
+                if (turns >= 4 && turns <= 5 && unit.card.name === 'Queen Bee Kirsti') {
+                    unit.card.name = 'Matriarch Hyena Kirsti';
+                    unit.card.atk = 4;
+                    unit.card.hp = 2;
+                    unit.card.maxHp = 2;
+                    unit.card.ability = 'berserk';
+                    unit.status.kirstiVariant = 'Matriarch Hyena Kirsti';
+                    unit.card.abilities = {
+                        onHit: [
+                            { type: 'drawCard', value: 2 }
+                        ],
+                        onDeath: [
+                            { type: 'spawnCard', cardName: 'Kirsti', amount: 1 }
+                        ]
+                    };
+                    
+                    log(`KIRSTI — QUEEN BEE EVOLVES → MATRIARCH HYENA KIRSTI! (2/3 → 4/2 Berserk | Draw 2 on hit)`);
+                    const el = getSlotCard(context.side, context.slot);
+                    if (el) {
+                        el.classList.add('kirsti-evolve-hyena');
+                        spawnAbilityRing(el, 'buff');
+                        animateCard(el, 'animate-legendary-transform');
+                        spawnFireParticles(el, 8);
+                    }
+                }
+            },
+
+            'Kirsti - Matriarch Hyena Kirsti': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                unit.status.kirstiTurnsAlive = (unit.status.kirstiTurnsAlive || 0) + 1;
+                const turns = unit.status.kirstiTurnsAlive;
+                
+                // Evolution at turns 6-9 → Apex Arachnea Kirsti
+                if (turns >= 6 && turns <= 9 && unit.card.name === 'Matriarch Hyena Kirsti') {
+                    unit.card.name = 'Apex Arachnea Kirsti';
+                    unit.card.atk = 5;
+                    unit.card.hp = 5;
+                    unit.card.maxHp = 5;
+                    unit.card.ability = 'none';
+                    unit.status.kirstiVariant = 'Apex Arachnea Kirsti';
+                    unit.card.abilities = {
+                        onPlay: [
+                            { type: 'lowerAllEnemiesAttack', value: 5 },
+                            { type: 'damageNexusPerAttackLowered', attackValue: 5 }
+                        ]
+                    };
+                    
+                    log(`KIRSTI — MATRIARCH HYENA EVOLVES → APEX ARACHNEA KIRSTI! (4/2 → 5/5 | Lowers enemy ATK, deals to Nexus)`);
+                    const el = getSlotCard(context.side, context.slot);
+                    if (el) {
+                        el.classList.add('kirsti-evolve-arachnea');
+                        spawnAbilityRing(el, 'dmg');
+                        animateCard(el, 'animate-legendary-transform');
+                        spawnLightningArc(el, document.getElementById(context.side === 'player' ? 'enemy-hp' : 'player-hp'), '#9333ea');
+                    }
+                }
+            },
+
+            'Kirsti - Apex Arachnea Kirsti': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                unit.status.kirstiTurnsAlive = (unit.status.kirstiTurnsAlive || 0) + 1;
+                const turns = unit.status.kirstiTurnsAlive;
+                
+                // Evolution at turns 10-14 → Abyssal Priestress Kirsti
+                if (turns >= 10 && turns <= 14 && unit.card.name === 'Apex Arachnea Kirsti') {
+                    unit.card.name = 'Abyssal Priestress Kirsti';
+                    unit.card.atk = 6;
+                    unit.card.hp = 6;
+                    unit.card.maxHp = 6;
+                    unit.card.ability = 'guard';
+                    unit.status.kirstiVariant = 'Abyssal Priestress Kirsti';
+                    unit.status.invincibleToCounters = true;
+                    unit.status.ignoresGuardTurns = 2;
+                    unit.card.abilities = {
+                        onPlay: [
+                            { type: 'applyInvincible', value: 2 },
+                            { type: 'silenceRandomEnemy', value: 2 }
+                        ]
+                    };
+                    
+                    log(`KIRSTI — APEX ARACHNEA EVOLVES → ABYSSAL PRIESTESS KIRSTI! (5/5 → 6/6 Guard | Invincible to counters, ignores Guard)`);
+                    const el = getSlotCard(context.side, context.slot);
+                    if (el) {
+                        el.classList.add('kirsti-evolve-priestress');
+                        el.classList.add('is-invincible');
+                        spawnAbilityRing(el, 'silence');
+                        animateCard(el, 'animate-legendary-transform');
+                        spawnManaSparkles(el, 12);
+                    }
+                }
+            },
+
+            'Kirsti - Abyssal Priestress Kirsti': async function(unit, eventName, context) {
+                if (eventName !== 'onTurnStart') return;
+                unit.status.kirstiTurnsAlive = (unit.status.kirstiTurnsAlive || 0) + 1;
+                const turns = unit.status.kirstiTurnsAlive;
+                
+                // Check if Kirsti is on player board and player's nexus HP > 0
+                const playerWon = context.side === 'player' && state.eHp > 0 && state.pHp > 0;
+                
+                // Evolution at turn 15 → Witch Mother Kirsti (only if player is winning and enemy nexus is at 0 or below... actually Kirsti survives so this is about the player winning)
+                if (turns === 15 && unit.card.name === 'Abyssal Priestress Kirsti' && playerWon) {
+                    unit.card.name = 'Witch Mother Kirsti';
+                    unit.card.atk = 10;
+                    unit.card.hp = 10;
+                    unit.card.maxHp = 10;
+                    unit.card.ability = 'none';
+                    unit.status.kirstiVariant = 'Witch Mother Kirsti';
+                    unit.card.abilities = {
+                        onPlay: [
+                            { type: 'nexusSwapHp' }
+                        ]
+                    };
+                    
+                    log(`KIRSTI — ABYSSAL PRIESTESS EVOLVES → WITCH MOTHER KIRSTI! (6/6 → 10/10 | NEXUS HP SWAP!)`);
+                    const el = getSlotCard(context.side, context.slot);
+                    if (el) {
+                        el.classList.add('kirsti-evolve-witch');
+                        spawnAbilityRing(el, 'buff');
+                        animateCard(el, 'animate-legendary-transform');
+                        // Epic animation
+                        spawnFireParticles(el, 15);
+                        flashScreen();
+                        flashVignette('purple');
+                    }
+                }
+            },
+
+            // Post Mortem Kirsti — triggers when any ally (except Kirsti herself) dies while she's alive
+            'Post Mortem Kirsti': async function(unit, eventName, context) {
+                if (eventName !== 'onDeath') return;
+                const dyingUnit = context.dyingUnit;
+                if (!dyingUnit || dyingUnit === unit) return; // Don't trigger on self
+                
+                // Check if this Kirsti is in her evolved form
+                if (!unit.status.kirstiVariant || unit.card.name === 'Kirsti') return;
+                
+                // Spawn Post Mortem Kirsti if not already on board
+                const board = context.side === 'enemy' ? state.eBoard : state.pBoard;
+                const hasPostMortem = board.some(s => s && s.card && s.card.name === 'Post Mortem Kirsti');
+                if (hasPostMortem) return;
+                
+                const emptyIdx = board.findIndex(s => s === null);
+                if (emptyIdx === -1) return;
+                
+                const postMortem = {
+                    card: {
+                        name: 'Post Mortem Kirsti',
+                        cost: 0,
+                        atk: 5,
+                        hp: 1,
+                        maxHp: 1,
+                        rarity: 'LEGENDARY',
+                        series: 'Kirsti Evolution',
+                        ability: 'echo',
+                        description: 'Echo. On Turn Start: Enemy Nexus -4 HP. All allies gain +4 Max HP.',
+                        abilities: {
+                            onTurnStart: [
+                                { type: 'damageNexus', target: 'enemy', value: 4 },
+                                { type: 'healAllies', value: 4 }
+                            ]
+                        }
+                    },
+                    status: { exhausted: true, justPlayed: true, silenced: false }
+                };
+                
+                board[emptyIdx] = postMortem;
+                await triggerCardEvent('onPlay', postMortem, { slot: emptyIdx, side: context.side, board });
+                
+                log(`KIRSTI — POST MORTEM ACTIVATES! Distraught Kirsti appears — deals 4 to enemy Nexus, allies gain +4 Max HP!`);
+                const el = getSlotCard(context.side, emptyIdx);
+                if (el) {
+                    el.classList.add('kirsti-post-mortem');
+                    animateCard(el, 'animate-legendary-transform');
+                    spawnFireParticles(el, 10);
+                    flashVignette('red');
+                }
+            },
+        };
+
+        // ── fireLegendaryPassives ────────────────────────────────────────────────
+        // Called at the end of every triggerCardEvent sweep.
+        // Walks every slot on the same board; if it's a living, non-silenced
+        // legendary, fires its registered passive with the current event & context.
+        // dyingUnit is injected so passives can react to other units' events.
+        async function fireLegendaryPassives(eventName, triggeringUnit, context) {
+            const board = context.side === 'enemy' ? state.eBoard : state.pBoard;
+            for (let idx = 0; idx < board.length; idx++) {
+                const slot = board[idx];
+                if (!slot || !slot.card) continue;
+                if (slot.card.rarity !== 'LEGENDARY') continue;
+                if ((slot.status?.silenced ?? 0) > 0) continue; // silenced = passive offline
+                const passive = LEGENDARY_PASSIVES[slot.card.name];
+                if (!passive) continue;
+                await passive(slot, eventName, {
+                    ...context,
+                    slot: idx,
+                    board,
+                    dyingUnit: triggeringUnit,   // the unit whose event fired this sweep
+                    playedSide: context.side,    // original side, useful for Saya's passive
+                });
+            }
+        }
+
         async function triggerCardEvent(eventName, unit, context = {}) {
             if (unit?.status?.silenced > 0) {
                 console.log(`${unit.card.name} is silenced. Ability ${eventName} blocked.`);
@@ -1069,7 +1809,11 @@ lucide.createIcons();
             }
 
             const effects = unit?.card?.abilities?.[eventName];
-            if (!effects || !Array.isArray(effects)) return;
+            if (!effects || !Array.isArray(effects)) {
+                // Still fire legendary passives even if this unit has no JSON abilities for this event
+                await fireLegendaryPassives(eventName, unit, buildAbilityContext(context));
+                return;
+            }
 
             const triggerContext = buildAbilityContext(context);
             const scenarioValue = evaluateScenario(unit?.card?.abilities?.scenario, unit, triggerContext);
@@ -1086,6 +1830,9 @@ lucide.createIcons();
                     continue;
                 }
             }
+
+            // Fire legendary passives AFTER this unit's own abilities resolve
+            await fireLegendaryPassives(eventName, unit, triggerContext);
         }
 
         async function loadCards() {
@@ -1225,11 +1972,7 @@ lucide.createIcons();
             lucide.createIcons();
 
             document.querySelectorAll('.nav-text, .sidebar-title, .sidebar-user-text, .sidebar-quickstart-text').forEach(el => {
-                if (window.innerWidth > 768) {
-                    if (isCollapsed) el.classList.add('hidden'); else el.classList.remove('hidden');
-                } else {
-                    if (isCollapsed) el.classList.add('hidden'); else el.classList.remove('hidden');
-                }
+                if (isCollapsed) el.classList.add('hidden'); else el.classList.remove('hidden');
             });
         }
 
@@ -1526,7 +2269,7 @@ lucide.createIcons();
 
             // --- FORCED MULTIPLE CARDS ---
                 // Add as many names as you want (up to 4)
-                const startingNames = ["Amy Lyn"];
+                const startingNames = [];
                 
                 startingNames.forEach(name => {
                     const found = ALL_CHARS.find(c => c.name === name);
@@ -1568,17 +2311,48 @@ lucide.createIcons();
             }
         }
 
+        // Returns a stable key for a card unit's visible state.
+        // renderBattleSlot uses this to skip re-rendering (and re-loading images)
+        // when nothing about the card has actually changed.
+        function _slotKey(unit) {
+            if (!unit) return '__empty__';
+            const s = unit.status;
+            return [
+                unit.card.name, unit.card.hp, unit.card.atk,
+                s.exhausted ? 1 : 0,
+                s.silenced  ? 1 : 0,
+                s.justPlayed ? 1 : 0,
+                s.invincible || 0,
+                s.shield     || 0,
+            ].join('|');
+        }
+
         async function updateBattleUI() {
             if(state.activeScreen !== 'arena') return;
             document.getElementById('player-hp').innerText = state.pHp;
             document.getElementById('enemy-hp').innerText = state.eHp;
             document.getElementById('mana-text').innerText = `${state.mana} / ${state.maxMana}`;
-            
+
+            // Hand: full rebuild only when card count changes; otherwise patch individual slots
             const handEl = document.getElementById('player-hand');
-            handEl.innerHTML = '';
-            for (const [i, c] of state.hand.entries()) {
-                const cardDiv = await createCardUI(c, i, 'hand');
-                handEl.appendChild(cardDiv);
+            const existingCards = Array.from(handEl.children);
+            if (existingCards.length !== state.hand.length) {
+                const newHand = document.createDocumentFragment();
+                for (const [i, c] of state.hand.entries()) {
+                    const cardDiv = await createCardUI(c, i, 'hand');
+                    newHand.appendChild(cardDiv);
+                }
+                handEl.innerHTML = '';
+                handEl.appendChild(newHand);
+            } else {
+                for (const [i, c] of state.hand.entries()) {
+                    const key = _slotKey({ card: c, status: {} });
+                    if (existingCards[i]?.dataset.slotKey !== key) {
+                        const cardDiv = await createCardUI(c, i, 'hand');
+                        cardDiv.dataset.slotKey = key;
+                        handEl.replaceChild(cardDiv, existingCards[i]);
+                    }
+                }
             }
 
             for(let i=0; i<4; i++) {
@@ -1592,14 +2366,20 @@ lucide.createIcons();
 
         async function renderBattleSlot(side, idx) {
             const slot = document.getElementById(`${side}-slot-${idx}`);
-            slot.innerHTML = '';
             const unit = side === 'player' ? state.pBoard[idx] : state.eBoard[idx];
+            const newKey = _slotKey(unit);
+            // Skip re-render entirely if nothing visible changed - keeps images stable
+            if (slot.dataset.slotKey === newKey) return;
+            slot.dataset.slotKey = newKey;
             if(unit) {
                 const cardDiv = await createCardUI(unit.card, idx, 'board', unit.status);
+                slot.innerHTML = '';
                 slot.appendChild(cardDiv);
                 if (unit.status.justPlayed) {
                     setTimeout(() => { unit.status.justPlayed = false; }, 1000);
                 }
+            } else {
+                slot.innerHTML = '';
             }
         }
 
@@ -1747,7 +2527,7 @@ lucide.createIcons();
 
                 // 2. HANDLE ABILITIES
                 if(atk.card.ability === 'silence') {
-                    def.status.silenced = true;
+                    def.status.silenced = (def.status.silenced || 0) + 1;
                     log(`${def.card.name} is SILENCED.`);
                     animateCard(defEl, 'animate-ability');
                 }
@@ -1786,12 +2566,12 @@ lucide.createIcons();
                 
                 // --- ON DEATH TRIGGERS ---
                 if (def.card.hp <= 0) {
-                    await triggerCardEvent('onDeath', def, { slot: eIdx, side: 'enemy', board: state.eBoard });
+                    await triggerCardEvent('onDeath', def, { slot: eIdx, side: 'enemy', board: state.eBoard, killedBy: atk });
                     if (def.card.hp <= 0) animateCardDeath(defEl, () => { state.eBoard[eIdx] = null; });
                 }
 
                 if (atk.card.hp <= 0) {
-                    await triggerCardEvent('onDeath', atk, { slot: pIdx, side: 'player', board: state.pBoard });
+                    await triggerCardEvent('onDeath', atk, { slot: pIdx, side: 'player', board: state.pBoard, killedBy: def });
                     if (atk.card.hp <= 0) animateCardDeath(atkEl, () => { state.pBoard[pIdx] = null; });
                 }
 
@@ -1802,6 +2582,9 @@ lucide.createIcons();
                 } else if ((isHaste2 || isEnergised) && atk.card.hp > 0 && def && def.card.hp > 0) {
                     log(`${atk.card.name} ${isEnergised ? '(ENERGISED)' : '(HASTE2)'} strikes again!`);
                     animateCard(atkEl, 'animate-attack');
+                    await handleStrike(pIdx, eIdx);
+                    atk.status.exhausted = true;
+                } else {
                     atk.status.exhausted = true;
                 }
 
@@ -1859,11 +2642,12 @@ lucide.createIcons();
 
         async function endTurn() {
             // 1. Trigger End of Turn effects
-            [
+            for (const group of [
                 { side: 'player', board: state.pBoard },
                 { side: 'enemy', board: state.eBoard }
-            ].forEach(async group => {
-                group.board.forEach(async (unit, idx) => {
+            ]) {
+                for (let idx = 0; idx < group.board.length; idx++) {
+                    const unit = group.board[idx];
                     if (unit) {
                         // Everyone triggers standard end-of-turn effects
                         await triggerCardEvent('onTurnEnd', unit, { side: group.side, slot: idx, board: group.board });
@@ -1874,8 +2658,8 @@ lucide.createIcons();
                             log(`${unit.card.name.toUpperCase()} DID NOT ATTACK, TRIGGERING ABILITY!`);
                         }
                     }
-                });
-            });
+                }
+            }
 
             updateBattleUI();
             log("ENEMY CYCLE STARTING...");
@@ -1924,10 +2708,19 @@ lucide.createIcons();
 
                             // 2. Execute Strike
                             if (targetType === 'nexus') {
+                                // Check charmedBy — if target is the nexus, no charm applies
                                 state.pHp -= u.card.atk;
                                 log(`${u.card.name} hits your nexus for ${u.card.atk}.`);
                             } else {
                                 const targetUnit = state.pBoard[targetIdx];
+
+                                // HINA — SOUL CHARM: Skip if this enemy is charmed and targeting Hina
+                                if (u.status?.charmedBy && targetUnit?.card?.name === u.status.charmedBy) {
+                                    log(`${u.card.name} is CHARMED — cannot strike ${u.status.charmedBy}! Attack cancelled.`);
+                                    u.status.exhausted = true;
+                                    return;
+                                }
+
                                 const preDefHp = targetUnit.card.hp; // Saved for accurate berserk calculations
                                 
                                 await triggerCardEvent('whenAttacked', targetUnit, { target: u, slot: targetIdx, side: 'player', board: state.pBoard });
@@ -2037,20 +2830,29 @@ lucide.createIcons();
                         u.status.exhausted = false; 
                         u.status.justPlayed = false; 
                         if (u.status.silenced > 0) u.status.silenced--;
+                        // Clear Hina's charm mark each turn
+                        if (u.status.charmedBy) delete u.status.charmedBy;
+                        // Clear Maria Hunley's per-turn heal tracker
+                        if (u.status._mariaHealedThisTurn) u.status._mariaHealedThisTurn.clear();
                     } 
+                });
+                // Also clear charm on enemy units
+                state.eBoard.forEach(u => {
+                    if (u && u.status?.charmedBy) delete u.status.charmedBy;
                 });
 
                 // 6. Trigger OnTurnStart effects
-                [
+                for (const group of [
                     { side: 'player', board: state.pBoard },
                     { side: 'enemy', board: state.eBoard }
-                ].forEach(async group => {
-                    group.board.forEach(async (unit, idx) => {
+                ]) {
+                    for (let idx = 0; idx < group.board.length; idx++) {
+                        const unit = group.board[idx];
                         if (unit) {
                             await triggerCardEvent('onTurnStart', unit, { side: group.side, slot: idx, board: group.board });
                         }
-                    });
-                });
+                    }
+                }
                 
                 draw();
                 updateBattleUI();

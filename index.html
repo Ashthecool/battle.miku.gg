@@ -164,6 +164,9 @@
             <!-- <button onclick="showScreen('vault')" id="btn-vault" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
                 <i data-lucide="database" class="w-4 h-4"></i><span class="nav-text">Full Vault</span> -->
             </button>
+            <button onclick="showScreen('story')" id="btn-story" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="map" class="w-4 h-4"></i><span class="nav-text">Story Mode</span>
+            </button>
             <button onclick="goToArena()" id="btn-arena" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
                 <i data-lucide="swords" class="w-4 h-4"></i><span class="nav-text">Battle Arena</span>
             </button>
@@ -435,6 +438,11 @@
             </div>
 
             <!-- ══════════════════════════════════════
+                 STORY MODE SCREEN
+                 ══════════════════════════════════════ -->
+            <div id="screen-story" class="screen hidden-screen overflow-y-auto custom-scroll story-screen-root"></div>
+
+            <!-- ══════════════════════════════════════
                  ARENA SCREEN (unchanged)
                  ══════════════════════════════════════ -->
             <div id="screen-arena" class="screen hidden-screen flex flex-col relative overflow-hidden">
@@ -510,5 +518,10 @@
          PLAYER SYSTEM — save/load, collection, decks, pack shop
          ══════════════════════════════════════════════════════════ -->
     <script src="player.js"></script>
+
+    <!-- ══════════════════════════════════════════════════════════
+         STORY MODE — map, chapters, campaign battles
+         ══════════════════════════════════════════════════════════ -->
+    <script src="story.js"></script>
 </body>
 </html>
