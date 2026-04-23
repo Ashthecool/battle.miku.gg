@@ -202,7 +202,7 @@ lucide.createIcons();
                     });
                     animateCard(document.getElementById(context.side === 'enemy' ? 'player-hp' : 'enemy-hp'), 'animate-ability');
                     break;
-                case 'silenceTarget':
+                case 'silenceTarget': {
                     const targetUnit = context.target || unit; // Use the target if provided, else the unit itself
                     if (targetUnit) {
                         if (!targetUnit.status) targetUnit.status = {};
@@ -218,6 +218,7 @@ lucide.createIcons();
                         }
                     }
                     break;
+                }
                 case 'disableTarget':
                     if (context.target) {
                         context.target.status.exhausted = true;
@@ -234,7 +235,7 @@ lucide.createIcons();
                         log(`${card.name.toUpperCase()} DRAWS ${Math.max(1, amount)} CARD(S).`);
                     }
                     break;
-                case 'healSelf':
+                case 'healSelf': {
                     const healed = Math.min(unit.card.maxHp, unit.card.hp + amount) - unit.card.hp;
                     if (healed > 0) {
                         unit.card.hp += healed;
@@ -244,6 +245,7 @@ lucide.createIcons();
                         }
                     }
                     break;
+                }
                 case 'attackUpSelf':
                     unit.card.atk += amount;
                     log(`${card.name.toUpperCase()} ATTACK INCREASED BY ${amount}.`);
@@ -270,7 +272,7 @@ lucide.createIcons();
                         }
                     }
                     break;
-                case 'dealDamageAllEnemies':
+                case 'dealDamageAllEnemies': {
                     const enemyBoard = getOpposingBoard(context) || [];
                     const enemyBoardSide = getBoardSide(enemyBoard);
                     console.log(`${card.name} dealing ${amount} damage to all enemies. Enemy board has ${enemyBoard.filter(u => u).length} units.`);
@@ -290,6 +292,7 @@ lucide.createIcons();
                         }
                     }
                     break;
+                }
                 case 'damageRandomEnemy': {
                     const enemyBoard = getOpposingBoard(context) || [];
                     const candidates = enemyBoard
@@ -341,7 +344,7 @@ lucide.createIcons();
                     }
                     break;
                     
-                case 'valuePerSeriesInEnemyBoard':
+                case 'valuePerSeriesInEnemyBoard': {
                     let seriesTotal = 0;
                     
                     // 1. Check the opposing board based on who is acting
@@ -359,6 +362,7 @@ lucide.createIcons();
                     context.scenario = seriesTotal; 
                     log(`SCALING: Found ${seriesTotal / amount} units from ${effect.series}. Value is ${seriesTotal}.`);
                     break;
+                }
 
                 case 'spawnCard':
                     if (context.side === 'enemy') {
@@ -415,7 +419,7 @@ lucide.createIcons();
                         console.warn(`Card to spawn not found: ${spawnName}`);
                     }
                     break;
-                case 'spawnOnBoard':
+                case 'spawnOnBoard': {
                     const summonName = effect.cardName;
                     const summonQty = resolveEffectValue(effect.amount || 1, card, context);
                     const summonTemplate = ALL_CHARS.find(c => c.name === summonName);
@@ -448,7 +452,8 @@ lucide.createIcons();
                     }
                     break;
                     // --- New Abilities ---
-                case 'giveAllAlliesEffect':
+                }
+                case 'giveAllAlliesEffect': {
                     // Identify the acting side's board
                     const allies = context.board || (context.side === 'enemy' ? state.eBoard : state.pBoard);
                     for (const [idx, u] of allies.entries()) {
@@ -458,8 +463,9 @@ lucide.createIcons();
                         }
                     }
                     break;
+                }
 
-                case 'giveAllEnemiesEffect':
+                case 'giveAllEnemiesEffect': {
                     // Identify the opposing board
                     const enemies = getOpposingBoard(context);
                     const enemySide = (context.side === 'player' ? 'enemy' : 'player');
@@ -477,6 +483,7 @@ lucide.createIcons();
                         }
                     }
                     break;
+                }
 
                 case 'giveSpecificAllyEffect': {
                     // Apply a specific effect to a targeted ally
@@ -1530,10 +1537,12 @@ lucide.createIcons();
                     const oldMaxHp = unit.card.maxHp;
                     
                     unit.card.name = 'Clever Kitsune Kirsti';
+                    unit.card.image = getCardImage('Clever Kitsune Kirsti');
                     unit.card.atk = 1;
                     unit.card.hp = 1;
                     unit.card.maxHp = 1;
                     unit.card.cost = 0;
+                    unit.card.description = '**Echo.** On Play: All allies gain **+2 Max HP.**\n£{She shed her mortal skin and slipped into something wilder.}£';
                     unit.status.kirstiVariant = 'Clever Kitsune Kirsti';
                     unit.card.abilities = {
                         onPlay: [
@@ -1547,6 +1556,8 @@ lucide.createIcons();
                     log(`KIRSTI — KITTY DATE EVOLVES → CLEVER KITSUNE KIRSTI! (1/1 → 1/1 | +2 Max HP to all on play)`);
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
+                        const imgEl = el.querySelector('img');
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
                         el.classList.add('kirsti-evolve-kitsune');
                         el.querySelector('.card-name')?.remove();
                         spawnAbilityRing(el, 'heal');
@@ -1563,10 +1574,12 @@ lucide.createIcons();
                 // Evolution at turns 2-3 → Queen Bee Kirsti
                 if (turns >= 2 && turns <= 3 && unit.card.name === 'Clever Kitsune Kirsti') {
                     unit.card.name = 'Queen Bee Kirsti';
+                    unit.card.image = getCardImage('Queen Bee Kirsti');
                     unit.card.atk = 2;
                     unit.card.hp = 3;
                     unit.card.maxHp = 3;
                     unit.card.ability = 'guard';
+                    unit.card.description = '**Guard.** On Play: All allies gain **+1 #atk#.** Counter-attacks on hit.\n£{Every hive needs a queen. Every queen needs teeth.}£';
                     unit.status.kirstiVariant = 'Queen Bee Kirsti';
                     unit.card.abilities = {
                         onPlay: [
@@ -1580,6 +1593,8 @@ lucide.createIcons();
                     log(`KIRSTI — CLEVER KITSUNE EVOLVES → QUEEN BEE KIRSTI! (1/1 → 2/3 Guard | +1 ATK all allies)`);
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
+                        const imgEl = el.querySelector('img');
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
                         el.classList.add('kirsti-evolve-queen');
                         spawnAbilityRing(el, 'buff');
                         animateCard(el, 'animate-legendary-transform');
@@ -1595,10 +1610,12 @@ lucide.createIcons();
                 // Evolution at turns 4-5 → Matriarch Hyena Kirsti
                 if (turns >= 4 && turns <= 5 && unit.card.name === 'Queen Bee Kirsti') {
                     unit.card.name = 'Matriarch Hyena Kirsti';
+                    unit.card.image = getCardImage('Matriarch Hyena Kirsti');
                     unit.card.atk = 4;
                     unit.card.hp = 2;
                     unit.card.maxHp = 2;
                     unit.card.ability = 'berserk';
+                    unit.card.description = "**Berserk.** On Hit: Draw **2** cards. On Death: Return **Kirsti** to hand.\\n£{She laughs loudest at the ones who think they've won.}£";
                     unit.status.kirstiVariant = 'Matriarch Hyena Kirsti';
                     unit.card.abilities = {
                         onHit: [
@@ -1612,6 +1629,8 @@ lucide.createIcons();
                     log(`KIRSTI — QUEEN BEE EVOLVES → MATRIARCH HYENA KIRSTI! (2/3 → 4/2 Berserk | Draw 2 on hit)`);
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
+                        const imgEl = el.querySelector('img');
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
                         el.classList.add('kirsti-evolve-hyena');
                         spawnAbilityRing(el, 'buff');
                         animateCard(el, 'animate-legendary-transform');
@@ -1628,10 +1647,12 @@ lucide.createIcons();
                 // Evolution at turns 6-9 → Apex Arachnea Kirsti
                 if (turns >= 6 && turns <= 9 && unit.card.name === 'Matriarch Hyena Kirsti') {
                     unit.card.name = 'Apex Arachnea Kirsti';
+                    unit.card.image = getCardImage('Apex Arachnea Kirsti');
                     unit.card.atk = 5;
                     unit.card.hp = 5;
                     unit.card.maxHp = 5;
                     unit.card.ability = 'none';
+                    unit.card.description = 'On Play: Reduce all enemies\' **#atk#** by **5.** Deal damage to the enemy Nexus equal to total #atk# drained.\n£{Eight eyes. No mercy. No escape.}£';
                     unit.status.kirstiVariant = 'Apex Arachnea Kirsti';
                     unit.card.abilities = {
                         onPlay: [
@@ -1643,6 +1664,8 @@ lucide.createIcons();
                     log(`KIRSTI — MATRIARCH HYENA EVOLVES → APEX ARACHNEA KIRSTI! (4/2 → 5/5 | Lowers enemy ATK, deals to Nexus)`);
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
+                        const imgEl = el.querySelector('img');
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
                         el.classList.add('kirsti-evolve-arachnea');
                         spawnAbilityRing(el, 'dmg');
                         animateCard(el, 'animate-legendary-transform');
@@ -1659,10 +1682,12 @@ lucide.createIcons();
                 // Evolution at turns 10-14 → Abyssal Priestress Kirsti
                 if (turns >= 10 && turns <= 14 && unit.card.name === 'Apex Arachnea Kirsti') {
                     unit.card.name = 'Abyssal Priestress Kirsti';
+                    unit.card.image = getCardImage('Abyssal Priestress Kirsti');
                     unit.card.atk = 6;
                     unit.card.hp = 6;
                     unit.card.maxHp = 6;
                     unit.card.ability = 'guard';
+                    unit.card.description = '**Guard.** On Play: Gain **Invincible** for 2 turns. Silence a random enemy for 2 turns. Immune to counter-attacks. Ignores **Guard** for 2 turns.\n£{She does not pray to the abyss. The abyss prays to her.}£';
                     unit.status.kirstiVariant = 'Abyssal Priestress Kirsti';
                     unit.status.invincibleToCounters = true;
                     unit.status.ignoresGuardTurns = 2;
@@ -1676,6 +1701,8 @@ lucide.createIcons();
                     log(`KIRSTI — APEX ARACHNEA EVOLVES → ABYSSAL PRIESTESS KIRSTI! (5/5 → 6/6 Guard | Invincible to counters, ignores Guard)`);
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
+                        const imgEl = el.querySelector('img');
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
                         el.classList.add('kirsti-evolve-priestress');
                         el.classList.add('is-invincible');
                         spawnAbilityRing(el, 'silence');
@@ -1696,10 +1723,12 @@ lucide.createIcons();
                 // Evolution at turn 15 → Witch Mother Kirsti (only if player is winning and enemy nexus is at 0 or below... actually Kirsti survives so this is about the player winning)
                 if (turns === 15 && unit.card.name === 'Abyssal Priestress Kirsti' && playerWon) {
                     unit.card.name = 'Witch Mother Kirsti';
+                    unit.card.image = getCardImage('Witch Mother Kirsti');
                     unit.card.atk = 10;
                     unit.card.hp = 10;
                     unit.card.maxHp = 10;
                     unit.card.ability = 'none';
+                    unit.card.description = '[rainbow]On Play: Swap both Nexus HP totals.[/rainbow]\n£{What was yours is mine. What was mine was always mine.}£';
                     unit.status.kirstiVariant = 'Witch Mother Kirsti';
                     unit.card.abilities = {
                         onPlay: [
@@ -1710,6 +1739,8 @@ lucide.createIcons();
                     log(`KIRSTI — ABYSSAL PRIESTESS EVOLVES → WITCH MOTHER KIRSTI! (6/6 → 10/10 | NEXUS HP SWAP!)`);
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
+                        const imgEl = el.querySelector('img');
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
                         el.classList.add('kirsti-evolve-witch');
                         spawnAbilityRing(el, 'buff');
                         animateCard(el, 'animate-legendary-transform');
@@ -1741,6 +1772,7 @@ lucide.createIcons();
                 const postMortem = {
                     card: {
                         name: 'Post Mortem Kirsti',
+                        image: getCardImage('Post Mortem Kirsti'),
                         cost: 0,
                         atk: 5,
                         hp: 1,
@@ -1748,7 +1780,7 @@ lucide.createIcons();
                         rarity: 'LEGENDARY',
                         series: 'Kirsti Evolution',
                         ability: 'echo',
-                        description: 'Echo. On Turn Start: Enemy Nexus -4 HP. All allies gain +4 Max HP.',
+                        description: '**Echo.** On Turn Start: Enemy Nexus **-4 #hp#.** All allies gain **+4 Max #hp#.**\n£{She rose from grief. She will not stop rising.}£',
                         abilities: {
                             onTurnStart: [
                                 { type: 'damageNexus', target: 'enemy', value: 4 },
@@ -1785,7 +1817,14 @@ lucide.createIcons();
                 if (!slot || !slot.card) continue;
                 if (slot.card.rarity !== 'LEGENDARY') continue;
                 if ((slot.status?.silenced ?? 0) > 0) continue; // silenced = passive offline
-                const passive = LEGENDARY_PASSIVES[slot.card.name];
+                let passive = LEGENDARY_PASSIVES[slot.card.name];
+                if (!passive) {
+                    if (slot.card.name === 'Kirsti') {
+                        passive = LEGENDARY_PASSIVES['Kirsti - Kitty Date Kirsti'];
+                    } else {
+                        passive = LEGENDARY_PASSIVES['Kirsti - ' + slot.card.name];
+                    }
+                }
                 if (!passive) continue;
                 await passive(slot, eventName, {
                     ...context,
@@ -1947,7 +1986,7 @@ lucide.createIcons();
             document.getElementById('screen-title').innerText = id.toUpperCase();
             
             if(id === 'vault') renderVault();
-            if(id === 'arena' && state.hand.length === 0) startBattleInternal();
+            // Arena now requires user confirmation via modal - removed auto-start
         }
 
         function toggleSidebar() {
@@ -2120,8 +2159,8 @@ lucide.createIcons();
                 // 5. Color tags: /color/text/
                 text = text.replace(/\/([a-zA-Z]+)\/([^\/]+)\//g, '<span style="color: $1;">$2</span>');
 
-                // 6. Horizontal line: --- or /n---/n
-                text = text.replace(/(\/n)?---(\/n)?/g, '<div class="w-full h-px bg-gradient-to-r from-transparent via-purple-400/50 to-transparent my-1"></div>');
+                // 6. Horizontal line: --- must be standalone (surrounded by whitespace, newlines, or start/end of string)
+                text = text.replace(/(^|[\s\n])---([\s\n]|$)/g, '$1<div class="w-full h-px bg-gradient-to-r from-transparent via-purple-400/50 to-transparent my-1"></div>$2');
 
                 // 7. Rainbow Text: [rainbow]Text[/rainbow]
                 text = text.replace(/\[rainbow\](.*?)\[\/rainbow\]/g, '<span class="font-black animate-pulse" style="background: linear-gradient(to right, rgb(239, 68, 68), rgb(234, 179, 8), rgb(34, 197, 94), rgb(59, 130, 246), rgb(168, 85, 247)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">$1</span>');
@@ -2142,11 +2181,270 @@ lucide.createIcons();
                 text = text.replace(/\{\{hidden\}\}([\s\S]*?)\{\{\/hidden\}\}/g, '<span class="hidden-trigger">$1</span>');
 
                 // 12. Flatten (Vertical Scale) or stretch (Horizontal Scale)
-                // Using scaleY for flattening (vertical)
-                text = text.replace(/\[flat\*(\d+)\](.*?)\[\/flat\]/g, '<span style="display: inline-block; transform: scaleX($1%);">$2</span>');
+                // [flat*N] squishes vertically → scaleY
+                text = text.replace(/\[flat\*(\d+)\](.*?)\[\/flat\]/g, '<span style="display: inline-block; transform: scaleY($1%);">$2</span>');
 
-                // Using scaleX for stretching (horizontal)
-                text = text.replace(/\[stretch\*(\d+)\](.*?)\[\/stretch\]/g, '<span style="display: inline-block; transform: scaleY($1%);">$2</span>');
+                // [stretch*N] stretches horizontally → scaleX
+                text = text.replace(/\[stretch\*(\d+)\](.*?)\[\/stretch\]/g, '<span style="display: inline-block; transform: scaleX($1%);">$2</span>');
+
+                // 13. Glitch Text: [glitch]Text[/glitch]
+                // Eerie flickering glitch effect with red/cyan pseudo-elements via animation
+                text = text.replace(/\[glitch\](.*?)\[\/glitch\]/g, '<span class="desc-glitch" data-text="$1">$1</span>');
+
+                // 14. Fire Text: [fire]Text[/fire]
+                // Animated gradient cycling through fire colours bottom-to-top
+                text = text.replace(/\[fire\](.*?)\[\/fire\]/g, '<span class="desc-fire font-black">$1</span>');
+
+                // 15. Ice Text: [ice]Text[/ice]
+                // Cool shimmer sweep across a blue/white gradient
+                text = text.replace(/\[ice\](.*?)\[\/ice\]/g, '<span class="desc-ice font-bold">$1</span>');
+
+                // 16. Shadow Text: [shadow]Text[/shadow]
+                // Deep pulsing dark aura glow
+                text = text.replace(/\[shadow\](.*?)\[\/shadow\]/g, '<span class="desc-shadow font-bold">$1</span>');
+
+                // 17. Gold/Legendary Text: [gold]Text[/gold]
+                // Shimmer sweep across rich gold gradient
+                text = text.replace(/\[gold\](.*?)\[\/gold\]/g, '<span class="desc-gold font-black">$1</span>');
+
+                // 18. Electric Text: [electric]Text[/electric]
+                // Rapid flickering + yellow-white glow simulating electricity
+                text = text.replace(/\[electric\](.*?)\[\/electric\]/g, '<span class="desc-electric font-bold">$1</span>');
+
+                // 19. Typewriter Text: [type]Text[/type]
+                // Characters appear one by one using character reveal animation
+                text = text.replace(/\[type\](.*?)\[\/type\]/g, (_, inner) => {
+                    const chars = [...inner].map((ch, i) =>
+                        `<span class="desc-typechar" style="animation-delay:${i * 60}ms">${ch === ' ' ? '&nbsp;' : ch}</span>`
+                    ).join('');
+                    return `<span class="desc-typewriter">${chars}</span>`;
+                });
+
+                // 20. Spin Text: [spin]Text[/spin]
+                // Continuously rotates 360° (good for ⚙ icons or single words)
+                text = text.replace(/\[spin\](.*?)\[\/spin\]/g, '<span class="desc-spin inline-block">$1</span>');
+
+                // 21. Corrupt Text: [corrupt]Text[/corrupt]
+                // Randomly swaps characters to look corrupted/glitched (CSS only approximation: flicker + skew)
+                text = text.replace(/\[corrupt\](.*?)\[\/corrupt\]/g, '<span class="desc-corrupt font-mono font-black">$1</span>');
+
+                // 22. Neon Text: [neon]Text[/neon]
+                // Bright neon pink/magenta pulsing glow
+                text = text.replace(/\[neon\](.*?)\[\/neon\]/g, '<span class="desc-neon font-black">$1</span>');
+
+                // 23. Wave Text: [wave]Text[/wave]
+                // Each character bobs up and down in a sine wave
+                text = text.replace(/\[wave\](.*?)\[\/wave\]/g, (_, inner) => {
+                    const chars = [...inner].map((ch, i) =>
+                        `<span class="desc-wavechar inline-block" style="animation-delay:${i * 80}ms">${ch === ' ' ? '&nbsp;' : ch}</span>`
+                    ).join('');
+                    return `<span>${chars}</span>`;
+                });
+
+                // 24. Void Text: [void]Text[/void]
+                // Dark purple swirling gradient with slow spin — feels ancient/cosmic
+                text = text.replace(/\[void\](.*?)\[\/void\]/g, '<span class="desc-void font-black">$1</span>');
+
+                // 25. Blood Text: [blood]Text[/blood]
+                // Dark crimson with drip-flicker animation
+                text = text.replace(/\[blood\](.*?)\[\/blood\]/g, '<span class="desc-blood font-black">$1</span>');
+
+                // Inject shared keyframes + classes once per page
+                if (!document.getElementById('desc-fx-styles')) {
+                    const style = document.createElement('style');
+                    style.id = 'desc-fx-styles';
+                    style.textContent = `
+                        /* ── GLITCH ── */
+                        @keyframes desc-glitch-anim {
+                            0%,100%{clip-path:inset(50% 0 30% 0);transform:translate(-3px,0) skewX(-1deg)}
+                            20%{clip-path:inset(10% 0 60% 0);transform:translate(3px,0) skewX(2deg)}
+                            40%{clip-path:inset(80% 0 5% 0);transform:translate(-2px,0)}
+                            60%{clip-path:inset(30% 0 40% 0);transform:translate(2px,1px)}
+                            80%{clip-path:inset(5% 0 80% 0);transform:translate(0,-1px)}
+                        }
+                        .desc-glitch {
+                            position: relative;
+                            color: #e2e8f0;
+                            text-shadow: 0 0 4px #a78bfa;
+                        }
+                        .desc-glitch::before,
+                        .desc-glitch::after {
+                            content: attr(data-text);
+                            position: absolute;
+                            left: 0; top: 0;
+                            width: 100%; height: 100%;
+                            pointer-events: none;
+                        }
+                        .desc-glitch::before {
+                            color: #f87171;
+                            animation: desc-glitch-anim 2.5s infinite steps(1);
+                            opacity: 0.8;
+                        }
+                        .desc-glitch::after {
+                            color: #67e8f9;
+                            animation: desc-glitch-anim 2.5s infinite steps(1) reverse;
+                            opacity: 0.7;
+                        }
+
+                        /* ── FIRE ── */
+                        @keyframes desc-fire-shift {
+                            0%{background-position:0% 100%}
+                            50%{background-position:100% 0%}
+                            100%{background-position:0% 100%}
+                        }
+                        .desc-fire {
+                            background: linear-gradient(to top, #fbbf24, #f97316, #ef4444, #fde68a, #f97316);
+                            background-size: 200% 300%;
+                            -webkit-background-clip: text;
+                            -webkit-text-fill-color: transparent;
+                            background-clip: text;
+                            animation: desc-fire-shift 1.4s ease infinite;
+                            text-shadow: none;
+                            filter: drop-shadow(0 0 6px #f9731688);
+                        }
+
+                        /* ── ICE ── */
+                        @keyframes desc-ice-shimmer {
+                            0%{background-position:200% center}
+                            100%{background-position:-200% center}
+                        }
+                        .desc-ice {
+                            background: linear-gradient(90deg, #bfdbfe, #e0f2fe, #ffffff, #93c5fd, #bfdbfe);
+                            background-size: 300% auto;
+                            -webkit-background-clip: text;
+                            -webkit-text-fill-color: transparent;
+                            background-clip: text;
+                            animation: desc-ice-shimmer 2.5s linear infinite;
+                            filter: drop-shadow(0 0 5px #7dd3fc88);
+                        }
+
+                        /* ── SHADOW ── */
+                        @keyframes desc-shadow-pulse {
+                            0%,100%{text-shadow:0 0 8px #7c3aed,0 0 20px #4c1d95,0 0 40px #1e1b4b}
+                            50%{text-shadow:0 0 4px #6d28d9,0 0 10px #2e1065}
+                        }
+                        .desc-shadow {
+                            color: #c4b5fd;
+                            animation: desc-shadow-pulse 2s ease-in-out infinite;
+                        }
+
+                        /* ── GOLD ── */
+                        @keyframes desc-gold-shimmer {
+                            0%{background-position:200% center}
+                            100%{background-position:-200% center}
+                        }
+                        .desc-gold {
+                            background: linear-gradient(90deg, #78350f, #fbbf24, #fef3c7, #f59e0b, #d97706, #fef3c7, #fbbf24);
+                            background-size: 300% auto;
+                            -webkit-background-clip: text;
+                            -webkit-text-fill-color: transparent;
+                            background-clip: text;
+                            animation: desc-gold-shimmer 2s linear infinite;
+                            filter: drop-shadow(0 0 5px #fbbf2466);
+                        }
+
+                        /* ── ELECTRIC ── */
+                        @keyframes desc-electric-flicker {
+                            0%,100%{opacity:1;text-shadow:0 0 6px #fef08a,0 0 14px #facc15,0 0 28px #eab308}
+                            15%{opacity:0.7;text-shadow:0 0 2px #fef9c3}
+                            30%{opacity:1;text-shadow:0 0 8px #fef08a,0 0 20px #facc15}
+                            50%{opacity:0.85;text-shadow:0 0 4px #fef08a}
+                            70%{opacity:1;text-shadow:0 0 10px #fef08a,0 0 22px #eab308}
+                            85%{opacity:0.6;text-shadow:none}
+                        }
+                        .desc-electric {
+                            color: #fef08a;
+                            animation: desc-electric-flicker 1.2s steps(1) infinite;
+                        }
+
+                        /* ── TYPEWRITER ── */
+                        @keyframes desc-typechar-reveal {
+                            from{opacity:0;transform:translateY(-4px)}
+                            to{opacity:1;transform:translateY(0)}
+                        }
+                        .desc-typewriter { display: inline; }
+                        .desc-typechar {
+                            opacity: 0;
+                            display: inline-block;
+                            animation: desc-typechar-reveal 0.12s ease forwards;
+                        }
+
+                        /* ── SPIN ── */
+                        @keyframes desc-spin-anim {
+                            from{transform:rotate(0deg)}
+                            to{transform:rotate(360deg)}
+                        }
+                        .desc-spin {
+                            animation: desc-spin-anim 2s linear infinite;
+                            display: inline-block;
+                        }
+
+                        /* ── CORRUPT ── */
+                        @keyframes desc-corrupt-anim {
+                            0%,100%{transform:skewX(0deg) skewY(0deg);opacity:1;filter:none}
+                            10%{transform:skewX(5deg);opacity:0.7;filter:hue-rotate(90deg)}
+                            20%{transform:skewX(-3deg) skewY(1deg);opacity:1;filter:none}
+                            35%{transform:skewX(0deg);filter:hue-rotate(180deg);opacity:0.5}
+                            50%{transform:skewX(4deg) skewY(-1deg);opacity:1;filter:none}
+                            65%{transform:none;opacity:0.6;filter:hue-rotate(270deg)}
+                            80%{transform:skewX(-2deg);opacity:1;filter:none}
+                        }
+                        .desc-corrupt {
+                            color: #f87171;
+                            animation: desc-corrupt-anim 3s steps(1) infinite;
+                            display: inline-block;
+                        }
+
+                        /* ── NEON ── */
+                        @keyframes desc-neon-pulse {
+                            0%,100%{text-shadow:0 0 4px #f0abfc,0 0 10px #e879f9,0 0 20px #a21caf,0 0 40px #86198f}
+                            50%{text-shadow:0 0 2px #f0abfc,0 0 6px #e879f9,0 0 12px #a21caf}
+                        }
+                        .desc-neon {
+                            color: #f0abfc;
+                            animation: desc-neon-pulse 1.8s ease-in-out infinite;
+                        }
+
+                        /* ── WAVE ── */
+                        @keyframes desc-wave-bob {
+                            0%,100%{transform:translateY(0)}
+                            50%{transform:translateY(-5px)}
+                        }
+                        .desc-wavechar {
+                            animation: desc-wave-bob 0.8s ease-in-out infinite;
+                            color: #a5f3fc;
+                        }
+
+                        /* ── VOID ── */
+                        @keyframes desc-void-rotate {
+                            0%{background-position:0% 50%}
+                            50%{background-position:100% 50%}
+                            100%{background-position:0% 50%}
+                        }
+                        .desc-void {
+                            background: linear-gradient(270deg, #1e1b4b, #4c1d95, #7c3aed, #312e81, #2e1065, #6d28d9);
+                            background-size: 400% 400%;
+                            -webkit-background-clip: text;
+                            -webkit-text-fill-color: transparent;
+                            background-clip: text;
+                            animation: desc-void-rotate 4s ease infinite;
+                            filter: drop-shadow(0 0 6px #7c3aed88);
+                        }
+
+                        /* ── BLOOD ── */
+                        @keyframes desc-blood-drip {
+                            0%,100%{text-shadow:0 0 6px #991b1b,0 2px 8px #7f1d1d;opacity:1}
+                            30%{text-shadow:0 4px 12px #dc2626,0 0 4px #991b1b;opacity:0.85}
+                            60%{text-shadow:0 1px 4px #7f1d1d;opacity:1}
+                        }
+                        .desc-blood {
+                            color: #fca5a5;
+                            animation: desc-blood-drip 2.2s ease-in-out infinite;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+
             return text;
         }
 
@@ -2269,7 +2567,7 @@ lucide.createIcons();
 
             // --- FORCED MULTIPLE CARDS ---
                 // Add as many names as you want (up to 4)
-                const startingNames = [];
+                const startingNames = ["Maria Hunley"];
                 
                 startingNames.forEach(name => {
                     const found = ALL_CHARS.find(c => c.name === name);
@@ -2667,10 +2965,24 @@ lucide.createIcons();
             const collectibleCards = ALL_CHARS.filter(c => !c.isKeyCard);
 
             setTimeout(async () => {
-                // 2. AI plays a card
+                // 2. AI plays a card with difficulty-based rarity filtering
                 const slot = state.eBoard.findIndex(s => s === null);
                 if(slot !== -1) {
-                    const c = collectibleCards[Math.floor(Math.random()*collectibleCards.length)];
+                    // Filter cards by difficulty rarity
+                    const diffLevel = window.selectedDifficulty || 1;
+                    const rarityOrder = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+                    const maxRarityIndex = Math.min(Math.max(0, diffLevel - 1), 4);
+                    const minRarityIndex = Math.max(0, diffLevel - 3);
+                    
+                    // Filter by rarity range based on difficulty
+                    const filteredCards = collectibleCards.filter(c => {
+                        const rarityIdx = rarityOrder.indexOf(c.rarity);
+                        return rarityIdx >= 0 && rarityIdx >= minRarityIndex && rarityIdx <= maxRarityIndex;
+                    });
+                    
+                    // Fall back to all cards if no cards match criteria
+                    const cardPool = filteredCards.length > 0 ? filteredCards : collectibleCards;
+                    const c = cardPool[Math.floor(Math.random() * cardPool.length)];
                     const enemyUnit = { card: cloneCard(c), status: { exhausted: true, justPlayed: true, silenced: false } };
                     state.eBoard[slot] = enemyUnit;
                     await triggerCardEvent('onPlay', enemyUnit, { slot, side: 'enemy', board: state.eBoard });

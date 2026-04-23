@@ -221,17 +221,77 @@
         showPackReveal(pulled, pack);
     }
 
+    // Single card reveal state
+    let _revealState = { cards: [], currentIndex: 0, revealedAll: false, pack: null };
+
     async function showPackReveal(cards, pack) {
         const overlay = document.getElementById('pack-reveal-overlay');
         const container = document.getElementById('pack-reveal-cards');
         container.innerHTML = '';
         overlay.classList.add('visible');
 
+        // Initialize reveal state
+        _revealState = { cards: cards, currentIndex: 0, revealedAll: false, pack: pack };
+
+        // Show first card in single reveal mode
+        showSingleRevealCard(0);
+    }
+
+    function showSingleRevealCard(index) {
+        const container = document.getElementById('pack-reveal-cards');
+        const c = _revealState.cards[index];
+
+        container.innerHTML = `
+            <div class="pack-reveal-single">
+                <div class="reveal-card-info">
+                    <div class="reveal-card-name">${c.name}</div>
+                    <div class="reveal-card-rarity rc-${c.rarity}">${c.rarity}</div>
+                    <div class="reveal-card-count">${index + 1} of ${_revealState.cards.length}</div>
+                </div>
+                <div class="reveal-single-card rarity-${c.rarity}" id="reveal-single-card">
+                    <img src="" class="reveal-card" id="reveal-card-img">
+                </div>
+                <button class="reveal-next-btn" id="reveal-next-btn">
+                    ${index < _revealState.cards.length - 1 ? 'Next Card →' : 'View All Cards'}
+                </button>
+            </div>
+        `;
+
+        // Load card image
+        const cardDef = ALL_CHARS.find(x => x.name === c.name);
+        const imgPath = cardDef ? getCardImage(c.name) : null;
+        const imgFallback = cardDef ? getCardImageJpg(c.name) : null;
+        const img = document.getElementById('reveal-card-img');
+        if (imgPath && img) {
+            img.src = imgPath;
+            img.onerror = () => { if (img.src !== imgFallback) img.src = imgFallback; };
+        }
+
+        // Setup next button
+        const nextBtn = document.getElementById('reveal-next-btn');
+        if (nextBtn) {
+            nextBtn.onclick = () => {
+                if (index < _revealState.cards.length - 1) {
+                    showSingleRevealCard(index + 1);
+                } else {
+                    showAllRevealedCards();
+                }
+            };
+        }
+    }
+
+    function showAllRevealedCards() {
+        const container = document.getElementById('pack-reveal-cards');
+        container.innerHTML = '';
+        _revealState.revealedAll = true;
+
+        const cards = _revealState.cards;
+
         for (let i = 0; i < cards.length; i++) {
             const c = cards[i];
             const wrap = document.createElement('div');
-            wrap.className = 'reveal-card-wrap';
-            wrap.style.animationDelay = `${i * 180}ms`;
+            wrap.className = 'reveal-card-wrap rarity-' + c.rarity;
+            wrap.style.animationDelay = `${i * 100}ms`;
 
             // Badge
             const badge = document.createElement('div');
@@ -243,33 +303,31 @@
             const cardDef = ALL_CHARS.find(x => x.name === c.name);
             const imgPath = cardDef ? getCardImage(c.name) : null;
             const imgFallback = cardDef ? getCardImageJpg(c.name) : null;
-            const rarityColors = {COMMON:'#64748b',UNCOMMON:'#10b981',RARE:'#3b82f6',EPIC:'#a855f7',LEGENDARY:'#f59e0b'};
             if (imgPath) {
                 const img = document.createElement('img');
                 img.src = imgPath;
+                img.className = 'reveal-card';
                 img.onerror = () => { if (img.src !== imgFallback) img.src = imgFallback; };
-                img.style.cssText = `width:100%;border-radius:12px;border:2px solid ${rarityColors[c.rarity]||'#64748b'};box-shadow:0 8px 24px rgba(0,0,0,0.6);`;
                 wrap.appendChild(img);
             } else {
                 const placeholder = document.createElement('div');
-                placeholder.style.cssText = `width:100%;padding-bottom:140%;background:rgba(99,102,241,0.1);border-radius:12px;border:2px solid ${rarityColors[c.rarity]||'#6366f1'};position:relative;`;
-                placeholder.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:32px;">🃏</span>`;
+                placeholder.className = 'reveal-card';
+                placeholder.style.cssText = `width:100%;height:100%;background:rgba(99,102,241,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:32px;`;
+                placeholder.innerHTML = `🃏`;
                 wrap.appendChild(placeholder);
             }
 
-            // Name + rarity
-            const name = document.createElement('div');
-            name.style.cssText = `font-size:10px;font-weight:800;text-align:center;margin-top:6px;color:rgba(255,255,255,0.8);`;
-            name.textContent = c.name;
-            wrap.appendChild(name);
-            const rar = document.createElement('div');
-            rar.style.cssText = `font-size:9px;font-weight:900;text-align:center;text-transform:uppercase;letter-spacing:0.08em;`;
-            rar.className = `rc-${c.rarity}`;
-            rar.textContent = c.rarity;
-            wrap.appendChild(rar);
-
             container.appendChild(wrap);
         }
+
+        // Add continue button after all cards
+        const continueBtn = document.createElement('button');
+        continueBtn.className = 'reveal-continue-btn';
+        continueBtn.textContent = 'Continue';
+        continueBtn.style.animation = 'btn-appear 0.5s ease-out 0.5s forwards';
+        continueBtn.style.opacity = '0';
+        continueBtn.onclick = closePackReveal;
+        container.appendChild(continueBtn);
     }
 
     function closePackReveal() {
@@ -555,6 +613,134 @@
         document.getElementById('card-details-overlay').classList.remove('visible');
     }
 
+    /* ─── Arena Confirmation Modal ───────────────────────── */
+    // 5 difficulty levels with rarity ranges
+    const ARENA_DIFFICULTIES = [
+        { id: 1, name: 'Rookie', minRarity: 0, maxRarity: 1, color: '#64748b', description: 'Common & Uncommon cards' },
+        { id: 2, name: 'Fighter', minRarity: 1, maxRarity: 2, color: '#10b981', description: 'Up to Rare' },
+        { id: 3, name: 'Veteran', minRarity: 2, maxRarity: 3, color: '#3b82f6', description: 'Up to Epic' },
+        { id: 4, name: 'Elite', minRarity: 3, maxRarity: 4, color: '#a855f7', description: 'Up to Legendary' },
+        { id: 5, name: 'Legendary', minRarity: 4, maxRarity: 4, color: '#f59e0b', description: 'Only Legendary!' }
+    ];
+
+    let selectedDifficulty = 1;
+    let _arenaPendingBattle = false;
+
+    function openArenaConfirm() {
+        if (!playerData || !playerData.decks) return;
+        
+        const activeDeck = playerData.decks[playerData.activeDeckIndex];
+        if (!activeDeck || !activeDeck.cards || activeDeck.cards.length === 0) {
+            showNoDeckWarning();
+            return;
+        }
+
+        // Render difficulty buttons
+        const diffContainer = document.getElementById('difficulty-buttons');
+        diffContainer.innerHTML = '';
+        
+        ARENA_DIFFICULTIES.forEach(diff => {
+            const btn = document.createElement('button');
+            btn.style.cssText = `
+                background: ${selectedDifficulty === diff.id ? diff.color + '33' : 'rgba(255,255,255,0.05)'};
+                border: 2px solid ${selectedDifficulty === diff.id ? diff.color : 'rgba(255,255,255,0.1)'};
+                border-radius: 10px;
+                padding: 8px 4px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                color: white;
+            `;
+            btn.innerHTML = `
+                <div style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.05em;color:${diff.color};margin-bottom:2px;">LV ${diff.id}</div>
+                <div style="font-size:11px;font-weight:800;">${diff.name}</div>
+            `;
+            btn.onclick = () => selectDifficulty(diff.id);
+            btn.onmouseover = () => {
+                if (selectedDifficulty !== diff.id) {
+                    btn.style.borderColor = diff.color + '66';
+                    btn.style.background = diff.color + '22';
+                }
+            };
+            btn.onmouseout = () => {
+                if (selectedDifficulty !== diff.id) {
+                    btn.style.borderColor = 'rgba(255,255,255,0.1)';
+                    btn.style.background = 'rgba(255,255,255,0.05)';
+                }
+            };
+            diffContainer.appendChild(btn);
+        });
+
+        // Render deck preview
+        const deckPreview = document.getElementById('arena-deck-preview');
+        deckPreview.innerHTML = '';
+        
+        activeDeck.cards.forEach(cardName => {
+            const cardDef = ALL_CHARS && ALL_CHARS.find(c => c.name === cardName);
+            const rarityColors = {COMMON:'#64748b',UNCOMMON:'#10b981',RARE:'#3b82f6',EPIC:'#a855f7',LEGENDARY:'#f59e0b'};
+            const color = cardDef ? (rarityColors[cardDef.rarity] || '#64748b') : '#64748b';
+            
+            const cardEl = document.createElement('div');
+            cardEl.style.cssText = `
+                width: 40px;
+                height: 40px;
+                border-radius: 6px;
+                background: ${color}22;
+                border: 1px solid ${color}66;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 9px;
+                font-weight: 700;
+                color: ${color};
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding: 2px;
+            `;
+            cardEl.textContent = cardName.substring(0, 6);
+            cardEl.title = cardName;
+            deckPreview.appendChild(cardEl);
+        });
+
+        // Show modal
+        document.getElementById('arena-confirm-overlay').style.opacity = '1';
+        document.getElementById('arena-confirm-overlay').style.pointerEvents = 'auto';
+    }
+
+    function selectDifficulty(diffId) {
+        selectedDifficulty = diffId;
+        openArenaConfirm(); // Re-render with new selection
+    }
+
+    function closeArenaConfirm() {
+        document.getElementById('arena-confirm-overlay').style.opacity = '0';
+        document.getElementById('arena-confirm-overlay').style.pointerEvents = 'none';
+        _arenaPendingBattle = false;
+    }
+
+    function confirmArenaBattle() {
+        _arenaPendingBattle = true;
+        closeArenaConfirm();
+        
+        // Set the difficulty for the AI
+        if (typeof setArenaDifficulty === 'function') {
+            setArenaDifficulty(selectedDifficulty);
+        }
+        
+        // Start the battle
+        showScreen('arena');
+        startBattleInternal();
+    }
+
+    function goToArena() {
+        openArenaConfirm();
+    }
+
+    // Set arena difficulty (called before battle starts)
+    window.setArenaDifficulty = function(diffLevel) {
+        selectedDifficulty = diffLevel;
+        console.log('Arena difficulty set to:', diffLevel);
+    };
+
     /* ─── No Deck Warning ──────────────────────────────────── */
     function checkDeckBeforeBattle() {
         if (!playerData || !playerData.decks) return false;
@@ -582,13 +768,6 @@
         showScreen('deckbuilder');
     }
 
-    function goToArena() {
-        // Check if player has a valid deck before entering arena
-        if (!checkDeckBeforeBattle()) {
-            return;
-        }
-        showScreen('arena');
-    }
 
     /* ─── Pack shop screen ─────────────────────────────────── */
     function renderPackShop() {
@@ -1257,6 +1436,12 @@
     }
 
     function renderAllPins() {
+        // Responsive scale factor based on container width
+        const container = document.getElementById('story-map-container');
+        const containerWidth = container ? container.offsetWidth : window.innerWidth;
+        const baseWidth = window.innerWidth / 0.6; // reference width for original mapX/mapY values
+        const scaleFactor = Math.min(1, containerWidth / baseWidth);
+
         let firstLockedFound = false;
 
         return STORY_CHAPTERS.map((ch, index) => {
@@ -1296,11 +1481,11 @@
 
                     // Hide levels that haven't been unlocked yet
                     if (!lvAccessible && !lvDone) {
-                        const offsetX = lv.mapX;
-                        const offsetY = lv.mapY;
+                        const offsetX = lv.mapX * scaleFactor;
+                        const offsetY = lv.mapY * scaleFactor;
                         const lineAngle = Math.atan2(offsetY, offsetX) * (180 / Math.PI);
                         const lineLength = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
-                        levelLines += `<div class="story-pin-line" style="--line-angle: ${lineAngle}deg; --line-length: ${lineLength}; animation-delay: ${li * 0.05}s; opacity:0.25;"></div>`;
+                        levelLines += `<div class="story-pin-line" style="--line-angle: ${lineAngle}deg; --line-length: ${lineLength}px; animation-delay: ${li * 0.05}s; opacity:0.25;"></div>`;
                         levelPins += `
                             <div class="story-pin story-pin-level" style="--radial-x: ${offsetX}px; --radial-y: ${offsetY}px; animation-delay: ${li * 0.05}s; opacity:0.3; cursor:not-allowed; filter:grayscale(1);" title="Complete previous level to unlock">
                                 <div class="story-pin-icon-small">🔒</div>
@@ -1313,13 +1498,14 @@
                     const lvCls  = 'story-pin story-pin-level' + (lvDone ? ' done' : '');
                     const lvClick = `onclick="showLevelModal('${ch.id}','${lv.id}')"`;
 
-                    const offsetX = lv.mapX;
-                    const offsetY = lv.mapY;
+                    // Apply responsive scaling to mapX/mapY
+                    const offsetX = lv.mapX * scaleFactor;
+                    const offsetY = lv.mapY * scaleFactor;
                     const lineAngle = Math.atan2(offsetY, offsetX) * (180 / Math.PI);
                     const lineLength = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
 
-                    levelLines += `<div class="story-pin-line" style="--line-angle: ${lineAngle}deg; --line-length: ${lineLength}; animation-delay: ${li * 0.05}s;"></div>`;
-                    const lvScale = lv.scale ?? 1.0;
+                    levelLines += `<div class="story-pin-line" style="--line-angle: ${lineAngle}deg; --line-length: ${lineLength}px; animation-delay: ${li * 0.05}s;"></div>`;
+                    const lvScale = (lv.scale ?? 1.0) * scaleFactor;
                     levelPins += `
                         <div class="${lvCls}" style="--radial-x: ${offsetX}px; --radial-y: ${offsetY}px; --pin-scale: ${lvScale}; animation-delay: ${li * 0.05}s;" ${lvClick} title="${lv.title}">
                             <div class="story-pin-icon-small">${lvIcon}</div>
