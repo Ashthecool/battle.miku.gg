@@ -17,12 +17,19 @@ lucide.createIcons();
         // Returns the .png URL directly — no async HEAD check needed.
         // img tags use onerror to fall back to .jpg if .png is missing.
         function getCardImage(name) {
-            const base = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
+            // .replace(/\//g, '-') replaces all slashes with dashes
+            const base = name.toLowerCase()
+                            .replace(/\//g, '-') 
+                            .replace(/ /g, '-')
+                            .replace(/'/g, '');
             return supabaseStorageUrl(`${base}.png`);
         }
 
         function getCardImageJpg(name) {
-            const base = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
+            const base = name.toLowerCase()
+                            .replace(/\//g, '-')
+                            .replace(/ /g, '-')
+                            .replace(/'/g, '');
             return supabaseStorageUrl(`${base}.jpg`);
         }
 
