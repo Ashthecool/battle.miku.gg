@@ -215,8 +215,8 @@
             <button onclick="showScreen('packshop')" id="btn-packshop" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
                 <i data-lucide="package" class="w-4 h-4"></i><span class="nav-text">Pack Shop</span>
             </button>
-            <!-- <button onclick="showScreen('vault')" id="btn-vault" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
-                <i data-lucide="database" class="w-4 h-4"></i><span class="nav-text">Full Vault</span> -->
+            <button onclick="showScreen('library')" id="btn-library" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+                <i data-lucide="library" class="w-4 h-4"></i><span class="nav-text">Library</span>
             </button>
             <button onclick="showScreen('story')" id="btn-story" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
                 <i data-lucide="map" class="w-4 h-4"></i><span class="nav-text">Story Mode</span>
@@ -475,6 +475,8 @@
                 </div>
             </div>
 
+
+
             <!-- ══════════════════════════════════════
                  VAULT SCREEN (Full roster)
                  ══════════════════════════════════════ -->
@@ -489,6 +491,75 @@
                     </div>
                     <div id="vault-grid" class="pb-24"></div>
                 </div>
+            </div>
+
+            <!-- ══════════════════════════════════════
+                 LIBRARY SCREEN
+                 ══════════════════════════════════════ -->
+            <div id="screen-library" class="screen hidden-screen overflow-y-auto custom-scroll">
+                <!-- Library Hero Header -->
+                <div class="lib-hero">
+                    <div class="lib-hero-bg"></div>
+                    <div class="lib-hero-content">
+                        <div class="lib-hero-left">
+                            <div class="lib-hero-eyebrow">📚 Card Encyclopedia</div>
+                            <h2 class="lib-hero-title">The Library</h2>
+                            <p class="lib-hero-sub">Every card you've collected — and every card still waiting</p>
+                        </div>
+                        <div class="lib-stat-cluster">
+                            <div class="lib-stat-pill owned">
+                                <div class="lib-stat-num" id="lib-owned-count">0</div>
+                                <div class="lib-stat-lbl">Owned</div>
+                            </div>
+                            <div class="lib-stat-divider"></div>
+                            <div class="lib-stat-pill missing">
+                                <div class="lib-stat-num" id="lib-missing-count">0</div>
+                                <div class="lib-stat-lbl">Missing</div>
+                            </div>
+                            <div class="lib-stat-divider"></div>
+                            <div class="lib-stat-pill total">
+                                <div class="lib-stat-num" id="lib-total-count">0</div>
+                                <div class="lib-stat-lbl">Total</div>
+                            </div>
+                            <div class="lib-stat-divider"></div>
+                            <div class="lib-stat-pill pct">
+                                <div class="lib-stat-num" id="lib-pct-count">0%</div>
+                                <div class="lib-stat-lbl">Complete</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Global progress bar -->
+                    <div class="lib-global-progress">
+                        <div class="lib-global-bar" id="lib-global-bar" style="width:0%"></div>
+                    </div>
+                </div>
+
+                <!-- Controls bar -->
+                <div class="lib-controls-bar">
+                    <div class="lib-search-wrap">
+                        <svg class="lib-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" id="library-search" placeholder="Search cards..." class="lib-search-input" oninput="renderLibrary()">
+                    </div>
+                    <div class="lib-rarity-filters" id="lib-rarity-filters">
+                        <button class="lib-rarity-btn active" data-rarity="ALL" onclick="setLibraryFilter('ALL',this)">All</button>
+                        <button class="lib-rarity-btn common" data-rarity="COMMON" onclick="setLibraryFilter('COMMON',this)">Common</button>
+                        <button class="lib-rarity-btn uncommon" data-rarity="UNCOMMON" onclick="setLibraryFilter('UNCOMMON',this)">Uncommon</button>
+                        <button class="lib-rarity-btn rare" data-rarity="RARE" onclick="setLibraryFilter('RARE',this)">Rare</button>
+                        <button class="lib-rarity-btn epic" data-rarity="EPIC" onclick="setLibraryFilter('EPIC',this)">Epic</button>
+                        <button class="lib-rarity-btn legendary" data-rarity="LEGENDARY" onclick="setLibraryFilter('LEGENDARY',this)">Legendary</button>
+                    </div>
+                    <div class="lib-view-toggle">
+                        <button class="lib-view-btn active" id="lib-toggle-all" onclick="setLibraryView('all',this)" title="Show all cards">👁 All</button>
+                        <button class="lib-view-btn" id="lib-toggle-owned" onclick="setLibraryView('owned',this)" title="Owned only">✨ Owned</button>
+                        <button class="lib-view-btn" id="lib-toggle-missing" onclick="setLibraryView('missing',this)" title="Missing only">🔍 Missing</button>
+                    </div>
+                </div>
+
+                <!-- Series jump nav -->
+                <div class="lib-series-nav" id="lib-series-nav"></div>
+
+                <!-- Main content -->
+                <div id="library-content" class="lib-main-content pb-32"></div>
             </div>
 
             <!-- ══════════════════════════════════════

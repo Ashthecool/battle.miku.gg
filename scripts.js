@@ -1,5 +1,10 @@
 lucide.createIcons();
 
+        // ── Global card data ──────────────────────────────────────────────────────
+        // Declared at the top level so all functions (draw, renderVault, endTurn, etc.)
+        // can reference ALL_CHARS before loadCards() finishes resolving.
+        let ALL_CHARS = [];
+
         // ── Supabase config ──────────────────────────────────────────────────────
         const SUPABASE_URL    = 'https://djknvuaivmtudiecwztx.supabase.co';
         const SUPABASE_KEY    = 'sb_publishable_oKPY6OIcovoVQlLZqBOLMg_skAxeCwp';
@@ -242,6 +247,7 @@ lucide.createIcons();
                         log(`${card.name.toUpperCase()} HEALS THEMSELF FOR ${healed}.`);
                         if (context.side !== undefined && context.slot !== undefined) {
                             animateCard(getSlotCard(context.side, context.slot), 'animate-heal');
+                            updateCardStats(context.side, context.slot);
                         }
                     }
                     break;
@@ -251,6 +257,7 @@ lucide.createIcons();
                     log(`${card.name.toUpperCase()} ATTACK INCREASED BY ${amount}.`);
                     if (context.side !== undefined && context.slot !== undefined) {
                         animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                        updateCardStats(context.side, context.slot);
                     }
                     break;
                     
@@ -258,6 +265,10 @@ lucide.createIcons();
                     if (context.target && context.target.card) {
                         context.target.card.hp -= amount;
                         log(`${card.name.toUpperCase()} SNIPES ${context.target.card.name.toUpperCase()} FOR ${amount} DAMAGE.`);
+                        const snipeOppSide = context.side === 'player' ? 'enemy' : 'player';
+                        const snipeOppBoard = snipeOppSide === 'enemy' ? state.eBoard : state.pBoard;
+                        const snipeTargetIdx = snipeOppBoard.indexOf(context.target);
+                        if (snipeTargetIdx !== -1) updateCardStats(snipeOppSide, snipeTargetIdx);
                     }
                     break;
                 case 'healAllies':
@@ -268,6 +279,7 @@ lucide.createIcons();
                             if (healed > 0) {
                                 ally.hp += healed;
                                 log(`${ally.name.toUpperCase()} HEALS FOR ${healed}.`);
+                                updateCardStats(context.side, i);
                             }
                         }
                     }
@@ -288,6 +300,7 @@ lucide.createIcons();
                                 }
                             } else {
                                 log(`${target.card.name.toUpperCase()} TAKES ${amount} DAMAGE.`);
+                                updateCardStats(enemyBoardSide, i);
                             }
                         }
                     }
@@ -309,6 +322,9 @@ lucide.createIcons();
                     if (victim.card.hp <= 0) {
                         log(`${victim.card.name.toUpperCase()} DIES.`);
                         await resolveBoardUnitDeath(victim, enemyBoard, victimPick.idx);
+                    } else {
+                        const dmgRndSide = getBoardSide(enemyBoard);
+                        updateCardStats(dmgRndSide, victimPick.idx);
                     }
                     break;
                 }
@@ -318,6 +334,7 @@ lucide.createIcons();
                     log(`${card.name.toUpperCase()} GAINS +${amount} MAX HP.`);
                     if (context.side !== undefined && context.slot !== undefined) {
                         animateCard(getSlotCard(context.side, context.slot), 'animate-heal');
+                        updateCardStats(context.side, context.slot);
                     }
                     break;
                 
@@ -543,11 +560,13 @@ lucide.createIcons();
                             case 'attackUp':
                                 targetUnit.card.atk += effectValue;
                                 log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} +${effectValue} ATTACK!`);
+                                updateCardStats(context.side, targetIdx);
                                 break;
                             case 'hpUp':
                                 targetUnit.card.maxHp += effectValue;
                                 targetUnit.card.hp += effectValue;
                                 log(`${card.name.toUpperCase()} GRANTS ${targetUnit.card.name.toUpperCase()} +${effectValue} MAX HP!`);
+                                updateCardStats(context.side, targetIdx);
                                 break;
                             default:
                                 console.warn(`Unknown effect type: ${effectType}`);
@@ -587,6 +606,7 @@ lucide.createIcons();
                     
                     if (context.side !== undefined && context.slot !== undefined) {
                         animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                        updateCardStats(context.side, context.slot);
                     }
                     break;
                 }
@@ -598,6 +618,7 @@ lucide.createIcons();
                         break;
                 case 'curseAllEnemies': {
                     const cursedBoard = getOpposingBoard(context) || [];
+                    const cursedSide = getBoardSide(cursedBoard);
                     for (let i = 0; i < cursedBoard.length; i++) {
                         const target = cursedBoard[i];
                         if (!target || !target.card) continue;
@@ -608,6 +629,8 @@ lucide.createIcons();
 
                         if (target.card.hp <= 0) {
                             await resolveBoardUnitDeath(target, cursedBoard, i);
+                        } else {
+                            updateCardStats(cursedSide, i);
                         }
                     }
                     break;
@@ -621,6 +644,7 @@ lucide.createIcons();
                         log(`${card.name.toUpperCase()} REVIVED with ${amount} HP!`);
                         if (context.side !== undefined && context.slot !== undefined) {
                             animateCard(getSlotCard(context.side, context.slot), 'animate-heal');
+                            updateCardStats(context.side, context.slot);
                         }
                     }
                     break;
@@ -650,8 +674,14 @@ lucide.createIcons();
                         victim.card.atk -= stolen;
                         unit.card.atk   += stolen;
                         log(`${card.name.toUpperCase()} STEALS ${stolen} ATK FROM ${victim.card.name.toUpperCase()}! (NOW ${unit.card.atk} ATK)`);
-                        if (context.side !== undefined && context.slot !== undefined)
+                        if (context.side !== undefined && context.slot !== undefined) {
                             animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                            updateCardStats(context.side, context.slot);
+                        }
+                        const stealOppSide = context.side === 'player' ? 'enemy' : 'player';
+                        const stealOppBoard = stealOppSide === 'enemy' ? state.eBoard : state.pBoard;
+                        const stealVictimIdx = stealOppBoard.indexOf(victim);
+                        if (stealVictimIdx !== -1) updateCardStats(stealOppSide, stealVictimIdx);
                     }
                     break;
                 }
@@ -659,19 +689,23 @@ lucide.createIcons();
                 case 'stealAttackFromAll': {
                     // Drains ATK from every enemy and stacks it all onto self.
                     const stealBoard = getOpposingBoard(context);
+                    const stealBoardSide = getBoardSide(stealBoard);
                     let totalStolen = 0;
-                    stealBoard.forEach(u => {
+                    stealBoard.forEach((u, i) => {
                         if (u && u.card && u.card.atk > 0) {
                             const stolen = Math.min(amount, u.card.atk);
                             u.card.atk  -= stolen;
                             totalStolen += stolen;
+                            updateCardStats(stealBoardSide, i);
                         }
                     });
                     if (totalStolen > 0) {
                         unit.card.atk += totalStolen;
                         log(`${card.name.toUpperCase()} DRAINS ${totalStolen} ATK FROM ALL ENEMIES - NOW AT ${unit.card.atk} ATK.`);
-                        if (context.side !== undefined && context.slot !== undefined)
+                        if (context.side !== undefined && context.slot !== undefined) {
                             animateCard(getSlotCard(context.side, context.slot), 'animate-ability');
+                            updateCardStats(context.side, context.slot);
+                        }
                     }
                     break;
                 }
@@ -734,10 +768,12 @@ lucide.createIcons();
                             u.card.hp    += best;
                             console.log(`${u.card.name.toUpperCase()} ROLLED [${rolls.join(', ')}] → BEST: +${best} MAX HP.`);
                             animateCard(getSlotCard(context.side, slotIdx), 'animate-heal');
+                            updateCardStats(context.side, slotIdx);
                         } else {
                             u.card.atk += best;
                             console.log(`${u.card.name.toUpperCase()} ROLLED [${rolls.join(', ')}] → BEST: +${best} ATK.`);
                             animateCard(getSlotCard(context.side, slotIdx), 'animate-ability');
+                            updateCardStats(context.side, slotIdx);
                         }
                     };
 
@@ -859,6 +895,7 @@ lucide.createIcons();
                                 // Animate the buffed card
                                 const cardEl = getSlotCard(side, idx);
                                 if (cardEl) animateCard(cardEl, 'animate-ability');
+                                updateCardStats(side, idx);
                                 
                                 found = true;
                                 break;
@@ -920,6 +957,7 @@ lucide.createIcons();
                     const lowered = Math.min(amount, victim.card.atk);
                     victim.card.atk -= lowered;
                     log(`${card.name.toUpperCase()} LOWERS ${victim.card.name.toUpperCase()}'S ATTACK BY ${lowered}! (NOW ${victim.card.atk} ATK)`);
+                    updateCardStats(getBoardSide(enemyBoard), victimPick.idx);
                     break;
                 }
 
@@ -929,6 +967,10 @@ lucide.createIcons();
                         const lowered = Math.min(amount, context.target.card.atk);
                         context.target.card.atk -= lowered;
                         log(`${card.name.toUpperCase()} LOWERS ${context.target.card.name.toUpperCase()}'S ATTACK BY ${lowered}! (NOW ${context.target.card.atk} ATK)`);
+                        const specOppSide = context.side === 'player' ? 'enemy' : 'player';
+                        const specOppBoard = specOppSide === 'enemy' ? state.eBoard : state.pBoard;
+                        const specIdx = specOppBoard.indexOf(context.target);
+                        if (specIdx !== -1) updateCardStats(specOppSide, specIdx);
                     }
                     break;
                 }
@@ -936,6 +978,7 @@ lucide.createIcons();
                 case 'lowerAllEnemiesAttack': {
                     // Lowers ATK from all enemies.
                     const enemyBoard = getOpposingBoard(context) || [];
+                    const lowerAllSide = getBoardSide(enemyBoard);
                     let totalLowered = 0;
                     for (let i = 0; i < enemyBoard.length; i++) {
                         const target = enemyBoard[i];
@@ -944,6 +987,7 @@ lucide.createIcons();
                             target.card.atk -= lowered;
                             totalLowered += lowered;
                             log(`${target.card.name.toUpperCase()}'S ATTACK LOWERED BY ${lowered}! (NOW ${target.card.atk} ATK)`);
+                            updateCardStats(lowerAllSide, i);
                         }
                     }
                     if (totalLowered > 0) {
@@ -970,6 +1014,11 @@ lucide.createIcons();
                     victim.card.atk = selfAtk;
                     
                     log(`${card.name.toUpperCase()} EXCHANGES POWER WITH ${victim.card.name.toUpperCase()}! ${card.name.toUpperCase()} NOW HAS ${unit.card.atk} ATK, ${victim.card.name.toUpperCase()} NOW HAS ${victim.card.atk} ATK!`);
+                    if (context.side !== undefined && context.slot !== undefined) updateCardStats(context.side, context.slot);
+                    const exchOppSide = context.side === 'player' ? 'enemy' : 'player';
+                    const exchOppBoard = exchOppSide === 'enemy' ? state.eBoard : state.pBoard;
+                    const exchVictimIdx = exchOppBoard.indexOf(victim);
+                    if (exchVictimIdx !== -1) updateCardStats(exchOppSide, exchVictimIdx);
                     break;
                 }
 
@@ -996,6 +1045,8 @@ lucide.createIcons();
                         if (victim.card.hp <= 0) {
                             log(`${victim.card.name.toUpperCase()} DIES.`);
                             await resolveBoardUnitDeath(victim, enemyBoard, victimPick.idx);
+                        } else {
+                            updateCardStats(getBoardSide(enemyBoard), victimPick.idx);
                         }
                     }
                     log(`${card.name.toUpperCase()} COMPLETED MULTI-STRIKE, DEALING ${totalDamage} TOTAL DAMAGE!`);
@@ -1005,6 +1056,7 @@ lucide.createIcons();
                 case 'drainHealthFromAll': {
                     // Steal HP from all enemies and heal self.
                     const enemyBoard = getOpposingBoard(context) || [];
+                    const drainSide = getBoardSide(enemyBoard);
                     let totalDrained = 0;
 
                     for (let i = 0; i < enemyBoard.length; i++) {
@@ -1020,6 +1072,8 @@ lucide.createIcons();
                                 if (enemyBoard[i] === target && target.card.hp <= 0) {
                                     enemyBoard[i] = null;
                                 }
+                            } else {
+                                updateCardStats(drainSide, i);
                             }
                         }
                     }
@@ -1028,6 +1082,7 @@ lucide.createIcons();
                         const healed = Math.min(unit.card.maxHp - unit.card.hp, totalDrained);
                         unit.card.hp += healed;
                         log(`${card.name.toUpperCase()} DRAINS ${totalDrained} HP FROM ALL ENEMIES AND HEALS FOR ${healed} HP! (NOW ${unit.card.hp} HP)`);
+                        if (context.side !== undefined && context.slot !== undefined) updateCardStats(context.side, context.slot);
                     }
                     break;
                 }
@@ -1051,6 +1106,7 @@ lucide.createIcons();
 
                 case 'nexusSwapHp': {
                     // Swap the HP of both nexuses - Witch Mother Kirsti ultimate ability
+                    const cardEl = context.side ? getSlotCard(context.side, context.slot) : null;
                     const pHpBefore = state.pHp;
                     const eHpBefore = state.eHp;
                     
@@ -1076,15 +1132,18 @@ lucide.createIcons();
 
                 case 'damageNexusPerAttackLowered': {
                     // Apex Arachnea Kirsti: For every attack point lowered from enemies, deal damage to enemy nexus
+                    const cardEl = context.side ? getSlotCard(context.side, context.slot) : null;
                     const attackValue = effect.attackValue || unit.card.atk;
                     const enemyBoard = getOpposingBoard(context);
+                    const dnaBlSide = getBoardSide(enemyBoard);
                     let totalLowered = 0;
                     
-                    enemyBoard.forEach(u => {
+                    enemyBoard.forEach((u, i) => {
                         if (u && u.card && u.card.atk > 0) {
                             const lowered = Math.min(attackValue, u.card.atk);
                             u.card.atk -= lowered;
                             totalLowered += lowered;
+                            updateCardStats(dnaBlSide, i);
                         }
                     });
                     
@@ -1173,6 +1232,26 @@ lucide.createIcons();
                     break;
                 }
 
+                case 'restoreMchanSlots': {
+                    const restored = unit.status?.mchanSlotsRemoved || 0;
+                    const oppSide  = unit.status?.mchanOppSide || (context.side === 'player' ? 'enemy' : 'player');
+                    if (restored > 0) {
+                        log(`M-CHAN DIES — ${oppSide.toUpperCase()} BOARD RESTORED BY ${restored} SLOT(S).`);
+                        if (oppSide === 'enemy') {
+                            state.eBoard = [...state.eBoard, ...Array(restored).fill(null)];
+                        } else {
+                            state.pBoard = [...state.pBoard, ...Array(restored).fill(null)];
+                        }
+                        setBoardSize(state.pBoard.length, state.eBoard.length);
+                    }
+                    // Remove ice aura from M-chan's card element if still in DOM
+                    if (context.slot !== undefined) {
+                        const mchanEl = getSlotCard(context.side, context.slot);
+                        if (mchanEl) mchanEl.classList.remove('mchan-active');
+                    }
+                    break;
+                }
+
         }
     }
         async function enemySpeak(text, duration = 2000) {
@@ -1212,6 +1291,7 @@ lucide.createIcons();
                     slot.card.atk += 1;
                     const el = getSlotCard(context.side, idx);
                     if (el) { spawnAbilityRing(el, 'buff'); animateCard(el, 'animate-ability'); }
+                    updateCardStats(context.side, idx);
                 });
                 log(`DIANA BULLEN — COMPOUND FORMULA: All allies +1 ATK from the reaction!`);
             },
@@ -1229,6 +1309,7 @@ lucide.createIcons();
                 log(`MARIJA — IRON DIRECTOR: ${dyingUnit.card.name.toUpperCase()} falls. Marija grows colder. (+1 ATK, +2 HP | Now ${unit.card.atk} ATK, ${unit.card.hp} HP)`);
                 const el = getSlotCard(context.side, context.slot);
                 if (el) { spawnAbilityRing(el, 'buff'); spawnHealRipple(el); }
+                updateCardStats(context.side, context.slot);
             },
 
             // ── Maria Hunley (Adoptive Life) ────────────────────────────────────
@@ -1255,6 +1336,7 @@ lucide.createIcons();
                     if (idx !== -1) {
                         const allyEl = getSlotCard(context.side, idx);
                         if (allyEl) { spawnHealRipple(allyEl); animateCard(allyEl, 'animate-heal'); }
+                        updateCardStats(context.side, idx);
                     }
                     const mariaEl = getSlotCard(context.side, context.slot);
                     if (mariaEl) spawnAbilityRing(mariaEl, 'heal');
@@ -1276,6 +1358,7 @@ lucide.createIcons();
                 log(`HAYLEY — INFINITE ENERGY: Healed ${healsInEvent} time(s) this trigger! +${healsInEvent} ATK permanently. (Now ${unit.card.atk} ATK)`);
                 const el = getSlotCard(context.side, context.slot);
                 if (el) { spawnAbilityRing(el, 'buff'); animateCard(el, 'animate-ability'); }
+                updateCardStats(context.side, context.slot);
             },
 
             // ── Helga (Atarashī gakkō; Secret Garden!) ─────────────────────────
@@ -1298,6 +1381,7 @@ lucide.createIcons();
                         log(`HELGA — RULE OF SILENCE: Strips 1 ATK from ${target.card.name.toUpperCase()}. (Now ${target.card.atk} ATK)`);
                         const el = getSlotCard(oppSide, idx);
                         if (el) spawnSilenceOverlay(el);
+                        updateCardStats(oppSide, idx);
                     }
                 }
                 // The ATK-buff suppression is handled by the existing silenceRandomEnemy
@@ -1367,6 +1451,7 @@ lucide.createIcons();
                 }
                 const el = getSlotCard(context.side, context.slot);
                 if (el) { spawnFireParticles(el, 6); animateCard(el, 'animate-ability'); }
+                updateCardStats(context.side, context.slot);
             },
 
             // ── Shogun Kagetora (Bloodlines) ────────────────────────────────────
@@ -1384,6 +1469,7 @@ lucide.createIcons();
                 if (idx !== -1) {
                     const el = getSlotCard(context.side, idx);
                     if (el) { spawnAbilityRing(el, 'buff'); animateCard(el, 'animate-ability'); }
+                    updateCardStats(context.side, idx);
                 }
             },
 
@@ -1402,6 +1488,7 @@ lucide.createIcons();
                         buffed++;
                         const el = getSlotCard(context.side, idx);
                         if (el) spawnAbilityRing(el, 'buff');
+                        updateCardStats(context.side, idx);
                     }
                 });
                 if (buffed > 0) log(`PRINCESS BEATRICE — ESSENTIA SURGE: Empowers ${buffed} Avalistos with +1 ATK!`);
@@ -1423,6 +1510,7 @@ lucide.createIcons();
                         cursed++;
                         const el = getSlotCard(oppSide, idx);
                         if (el) spawnAbilityRing(el, 'curse');
+                        updateCardStats(oppSide, idx);
                     }
                 });
                 if (cursed > 0) log(`WITCH MORGANARLISA — ROTTING CURSE: Dark magic seeps into ${cursed} enemy/enemies. (-1 HP each)`);
@@ -1464,6 +1552,7 @@ lucide.createIcons();
                 log(`AMY LYN — STAR POWER: +${variants} ATK & +${variants} Max HP from ${variants} variant(s)!`);
                 const el = getSlotCard(context.side, context.slot);
                 if (el) { spawnAbilityRing(el, 'buff'); spawnHealRipple(el); }
+                updateCardStats(context.side, context.slot);
             },
 
             // ── Kumi (Original) ─────────────────────────────────────────────────
@@ -1752,6 +1841,62 @@ lucide.createIcons();
                 }
             },
 
+            // M-chan — removes 2 slots from the opposing board on play (restored via JSON onDeath ability)
+            'M-chan': async function(unit, eventName, context) {
+                if (eventName !== 'onPlay') return;
+                // Guard: only fire once (JSON onPlay abilities may also call fireLegendaryPassives)
+                if (unit.status.mchanActivated) return;
+                unit.status.mchanActivated = true;
+
+                const REMOVED = 2;
+                const oppSide  = context.side === 'player' ? 'enemy' : 'player';
+                const oppBoard = oppSide === 'enemy' ? state.eBoard : state.pBoard;
+                const newSize  = Math.max(1, oppBoard.length - REMOVED);
+                const removed  = oppBoard.length - newSize;
+
+                unit.status.mchanSlotsRemoved = removed;
+                unit.status.mchanOppSide      = oppSide;
+
+                log(`M-CHAN — LEGENDARY: SHRINKING ${oppSide.toUpperCase()} BOARD BY ${removed} SLOT(S)!`);
+
+                // Animate the slots being removed before they disappear
+                for (let i = oppBoard.length - 1; i >= newSize; i--) {
+                    const slotEl = document.getElementById(`${oppSide}-slot-${i}`);
+                    if (slotEl) slotEl.classList.add('slot-mchan-collapse');
+                }
+
+                // Wait for collapse animation before actually removing
+                await delay(500);
+
+                for (let i = oppBoard.length - 1; i >= newSize; i--) {
+                    if (oppBoard[i]) {
+                        log(`${oppBoard[i].card.name.toUpperCase()} LOSES THEIR SLOT AND IS REMOVED.`);
+                        await triggerCardEvent('onDeath', oppBoard[i], {
+                            slot: i, side: oppSide, board: oppBoard
+                        });
+                        oppBoard[i] = null;
+                    }
+                }
+
+                if (oppSide === 'enemy') {
+                    state.eBoard = oppBoard.slice(0, newSize);
+                } else {
+                    state.pBoard = oppBoard.slice(0, newSize);
+                }
+
+                setBoardSize(state.pBoard.length, state.eBoard.length);
+
+                // Ice aura on M-chan while she is alive
+                const el = getSlotCard(context.side, context.slot);
+                if (el) {
+                    el.classList.add('mchan-active');
+                    spawnAbilityRing(el, 'dmg');
+                    animateCard(el, 'animate-legendary-transform');
+                    spawnFireParticles(el, 10);
+                    flashVignette('red');
+                }
+            },
+
             // Post Mortem Kirsti — triggers when any ally (except Kirsti herself) dies while she's alive
             'Post Mortem Kirsti': async function(unit, eventName, context) {
                 if (eventName !== 'onDeath') return;
@@ -1815,7 +1960,7 @@ lucide.createIcons();
             for (let idx = 0; idx < board.length; idx++) {
                 const slot = board[idx];
                 if (!slot || !slot.card) continue;
-                if (slot.card.rarity !== 'LEGENDARY') continue;
+                if (slot.card.rarity?.toUpperCase() !== 'LEGENDARY') continue;
                 if ((slot.status?.silenced ?? 0) > 0) continue; // silenced = passive offline
                 let passive = LEGENDARY_PASSIVES[slot.card.name];
                 if (!passive) {
@@ -1889,6 +2034,14 @@ lucide.createIcons();
                     image: getCardImage(card.name),
                     imageFallback: getCardImageJpg(card.name)
                 }));
+                // Patch M-chan abilities: onPlay is handled by legendary passive,
+                // onDeath must fire restoreMchanSlots before her slot is nulled.
+                const mchan = ALL_CHARS.find(c => c.name === 'M-chan');
+                if (mchan) {
+                    mchan.abilities = {
+                        onDeath: [{ type: 'restoreMchanSlots' }]
+                    };
+                }
                 log(`Loaded cards.json (${data.length} cards)`);
             } catch (error) {
                 console.warn('cards.json could not be loaded', error);
@@ -1986,6 +2139,9 @@ lucide.createIcons();
             document.getElementById('screen-title').innerText = id.toUpperCase();
             
             if(id === 'vault') renderVault();
+            if(id === 'library') renderLibrary();
+            if(id === 'collection') renderCollection();
+            if(id === 'lobby') updateLobbyStats();
             // Arena now requires user confirmation via modal - removed auto-start
         }
 
@@ -2078,8 +2234,15 @@ lucide.createIcons();
             }
         }
 
-        async function formatDescription(text) {
+        // Cache for formatDescription results to avoid redundant fetches
+        const _descCache = new Map();
+
+        async function formatDescription(text, skipLoreImages = false) {
             if (!text) return 'No special abilities.';
+
+            // Return cached result when lore images aren't needed (e.g. library preview)
+            const cacheKey = text + (skipLoreImages ? '__nolore' : '');
+            if (_descCache.has(cacheKey)) return _descCache.get(cacheKey);
 
             // 1. Lore Links: [[DisplayText|ImageName1|ImageName2]]
             const matches = [...text.matchAll(/\[\[(.*?)]]/g)];
@@ -2096,6 +2259,13 @@ lucide.createIcons();
                 } else {
                     displayText = content;
                     imageNames = [content];
+                }
+
+                // In preview/library mode skip expensive blob fetches — just render the link text
+                if (skipLoreImages) {
+                    const replacement = `<span class="lore-link">${displayText}</span>`;
+                    text = text.replace(match[0], replacement);
+                    continue;
                 }
 
                 let imgTagsHTML = '';
@@ -2445,14 +2615,15 @@ lucide.createIcons();
                     document.head.appendChild(style);
                 }
 
+            _descCache.set(cacheKey, text);
             return text;
         }
 
-        async function createCardUI(card, index, type, status = {}) {
+        async function createCardUI(card, index, type, status = {}, skipLoreImages = false) {
             // card.image is now a plain URL string
             const imageSrc = card.image || '';
             const imageFallback = card.imageFallback || '';
-            const descriptionHTML = await formatDescription(card.description);
+            const descriptionHTML = await formatDescription(card.description, skipLoreImages);
 
             const div = document.createElement('div');
 
@@ -2567,7 +2738,7 @@ lucide.createIcons();
 
             // --- FORCED MULTIPLE CARDS ---
                 // Add as many names as you want (up to 4)
-                const startingNames = ["Maria Hunley"];
+                const startingNames = ["M-chan"];
                 
                 startingNames.forEach(name => {
                     const found = ALL_CHARS.find(c => c.name === name);
@@ -2594,6 +2765,78 @@ lucide.createIcons();
             }
             showScreen('arena');
             startBattleInternal();
+        }
+
+        /**
+         * Changes the number of slots on the player and/or enemy board.
+         *
+         * @param {number} playerSlots - New number of player board slots (e.g. 5)
+         * @param {number} enemySlots  - New number of enemy board slots (e.g. 5)
+         *
+         * Call this BEFORE startBattleInternal() or at the start of a battle.
+         * Example: setBoardSize(5, 5);
+         */
+        function setBoardSize(playerSlots, enemySlots) {
+            // ── 1. Resize the state arrays ─────────────────────────────────────────
+            // Grow: pad with nulls. Shrink: truncate (cards in removed slots are lost).
+            const resizeBoard = (board, newSize) => {
+                if (newSize > board.length) {
+                    return [...board, ...Array(newSize - board.length).fill(null)];
+                }
+                return board.slice(0, newSize);
+            };
+
+            state.pBoard = resizeBoard(state.pBoard, playerSlots);
+            state.eBoard = resizeBoard(state.eBoard, enemySlots);
+
+            // ── 2. Sync the DOM slot elements ─────────────────────────────────────
+            const syncDOMSlots = (side, newCount) => {
+                // Find the container by locating slot-0 and using its parentElement —
+                // avoids hardcoding a container ID that may differ in the HTML.
+                const slot0 = document.getElementById(`${side}-slot-0`);
+                if (!slot0) {
+                    console.warn(`setBoardSize: could not find #${side}-slot-0 anchor`);
+                    return;
+                }
+                const container = slot0.parentElement;
+                if (!container) {
+                    console.warn(`setBoardSize: #${side}-slot-0 has no parent`);
+                    return;
+                }
+
+                const existing = container.querySelectorAll(`.slot[data-side="${side}"]`);
+                const currentCount = existing.length;
+
+                // Remove extra slots (shrink)
+                for (let i = newCount; i < currentCount; i++) {
+                    const el = document.getElementById(`${side}-slot-${i}`);
+                    if (el) el.remove();
+                }
+
+                // Clone slot-0 as a template to add new ones (grow)
+                if (newCount > currentCount) {
+                    const template = slot0;
+                    for (let i = currentCount; i < newCount; i++) {
+                        const clone = template.cloneNode(false); // shallow — no stale card content
+                        clone.id = `${side}-slot-${i}`;
+                        clone.dataset.idx = i;
+                        clone.dataset.side = side;
+                        clone.innerHTML = '';
+                        clone.setAttribute('ondragover', 'allowDrop(event)');
+                        clone.setAttribute('ondrop', 'dropOnSlot(event)');
+                        container.appendChild(clone);
+                    }
+                }
+            };
+
+            syncDOMSlots('player', playerSlots);
+            syncDOMSlots('enemy', enemySlots);
+
+            // ── 3. Store counts for updateBattleUI's patched render loop ──────────
+            window._boardSlotCount = { player: playerSlots, enemy: enemySlots };
+
+            // ── 4. Refresh the UI ─────────────────────────────────────────────────
+            updateBattleUI();
         }
 
         function draw() {
@@ -2625,6 +2868,40 @@ lucide.createIcons();
             ].join('|');
         }
 
+        // Structural key: everything that requires a full card rebuild (name, status flags).
+        // If only this is unchanged but stats changed, we can patch in-place instead.
+        function _structuralKey(unit) {
+            if (!unit) return '__empty__';
+            const s = unit.status;
+            return [
+                unit.card.name,
+                s.exhausted  ? 1 : 0,
+                s.silenced   ? 1 : 0,
+                s.justPlayed ? 1 : 0,
+                s.invincible || 0,
+                s.shield     || 0,
+            ].join('|');
+        }
+
+        // Stat key: only atk and hp — the two values we can patch without a full rebuild.
+        function _statKey(unit) {
+            if (!unit) return '__empty__';
+            return `${unit.card.atk}|${unit.card.hp}`;
+        }
+
+        // Surgically update just the ATK and HP badges on an already-rendered card element.
+        // Returns true if the patch was applied, false if the card element wasn't found.
+        function _patchCardStats(slot, unit) {
+            const cardEl = slot.querySelector('.card-nexus');
+            if (!cardEl) return false;
+            const atkEl = cardEl.querySelector('.atk-badge');
+            const hpEl  = cardEl.querySelector('.hp-badge');
+            if (!atkEl || !hpEl) return false;
+            atkEl.textContent = unit.card.atk;
+            hpEl.textContent  = unit.card.hp;
+            return true;
+        }
+
         async function updateBattleUI() {
             if(state.activeScreen !== 'arena') return;
             document.getElementById('player-hp').innerText = state.pHp;
@@ -2653,9 +2930,11 @@ lucide.createIcons();
                 }
             }
 
-            for(let i=0; i<4; i++) {
-                await renderBattleSlot('player', i);
-                await renderBattleSlot('enemy', i);
+            const _pLen = (window._boardSlotCount?.player) ?? state.pBoard.length;
+            const _eLen = (window._boardSlotCount?.enemy)  ?? state.eBoard.length;
+            for (let i = 0; i < Math.max(_pLen, _eLen); i++) {
+                if (i < _pLen) await renderBattleSlot('player', i);
+                if (i < _eLen) await renderBattleSlot('enemy', i);
             }
 
             applyHandFan();
@@ -2666,10 +2945,32 @@ lucide.createIcons();
             const slot = document.getElementById(`${side}-slot-${idx}`);
             const unit = side === 'player' ? state.pBoard[idx] : state.eBoard[idx];
             const newKey = _slotKey(unit);
+
             // Skip re-render entirely if nothing visible changed - keeps images stable
             if (slot.dataset.slotKey === newKey) return;
-            slot.dataset.slotKey = newKey;
-            if(unit) {
+
+            const newStructKey = _structuralKey(unit);
+            const newStatKey   = _statKey(unit);
+
+            // If only atk/hp changed (structural key matches), patch the badges in-place.
+            // This avoids a full innerHTML rebuild and keeps the card image stable.
+            if (
+                unit &&
+                slot.dataset.structuralKey === newStructKey &&
+                slot.dataset.statKey !== newStatKey &&
+                _patchCardStats(slot, unit)
+            ) {
+                slot.dataset.slotKey  = newKey;
+                slot.dataset.statKey  = newStatKey;
+                return;
+            }
+
+            // Full rebuild required (new card, death, status change, etc.)
+            slot.dataset.slotKey      = newKey;
+            slot.dataset.structuralKey = newStructKey;
+            slot.dataset.statKey       = newStatKey;
+
+            if (unit) {
                 const cardDiv = await createCardUI(unit.card, idx, 'board', unit.status);
                 slot.innerHTML = '';
                 slot.appendChild(cardDiv);
@@ -2678,6 +2979,33 @@ lucide.createIcons();
                 }
             } else {
                 slot.innerHTML = '';
+            }
+        }
+
+        // Convenience: update ATK/HP badges for a single board card without
+        // running the full updateBattleUI pass. Falls back to renderBattleSlot
+        // if the card element isn't present yet (e.g. slot never rendered).
+        async function updateCardStats(side, idx) {
+            const slot = document.getElementById(`${side}-slot-${idx}`);
+            if (!slot) return;
+            const unit = side === 'player' ? state.pBoard[idx] : state.eBoard[idx];
+            if (!unit) return;
+
+            const newKey        = _slotKey(unit);
+            const newStructKey  = _structuralKey(unit);
+            const newStatKey    = _statKey(unit);
+
+            if (slot.dataset.slotKey === newKey) return; // nothing changed
+
+            if (
+                slot.dataset.structuralKey === newStructKey &&
+                _patchCardStats(slot, unit)
+            ) {
+                slot.dataset.slotKey = newKey;
+                slot.dataset.statKey = newStatKey;
+            } else {
+                // Structural change — fall back to a full slot render
+                await renderBattleSlot(side, idx);
             }
         }
 
@@ -2813,6 +3141,10 @@ lucide.createIcons();
                     atk.card.hp -= actualDamageToAtk;
                 }
 
+                // Patch stat badges immediately for surviving combatants
+                if (def.card.hp > 0) updateCardStats('enemy', eIdx);
+                if (atk.card.hp > 0) updateCardStats('player', pIdx);
+
                 const isHaste2 = atk.card.ability === 'haste2';
                 const attackContext = {
                     target: def,
@@ -2854,6 +3186,7 @@ lucide.createIcons();
                                 animateCardDeath(getSlotCard('enemy', adj), () => { state.eBoard[adj] = null; });
                             } else {
                                 log(`${state.eBoard[adj].card.name} TAKES SPLASH`);
+                                updateCardStats('enemy', adj);
                             }
                         }
                     });
@@ -3076,6 +3409,10 @@ lucide.createIcons();
                                     u.card.hp -= actualDamageToAI;
                                 }
 
+                                // Patch stat badges immediately for surviving combatants
+                                if (targetUnit.card.hp > 0) updateCardStats('player', targetIdx);
+                                if (u.card.hp > 0) updateCardStats('enemy', enemyIdx);
+
                                 // Resolve Player Unit Death
                                 if (targetUnit.card.hp <= 0) {
                                     log(`${targetUnit.card.name} is destroyed.`);
@@ -3103,21 +3440,24 @@ lucide.createIcons();
                         };
 
                         // Execute the primary attack
-                        performAIStrike();
+                        await performAIStrike();
 
-                        const isEnergised = atk.status.energised;
+                        const isEnergised = u.status.energised;
+                        const isHaste2 = u.card.ability === 'haste2';
 
                         if (!isHaste2 && !isEnergised) {
-                            atk.status.exhausted = true;
-                        } else if ((isHaste2 || isEnergised) && atk.card.hp > 0 && def && def.card.hp > 0) {
-                            log(`${atk.card.name} ${isEnergised ? '(ENERGISED)' : '(HASTE2)'} strikes again!`);
-                            animateCard(atkEl, 'animate-attack');
-                            atk.status.exhausted = true;
+                            u.status.exhausted = true;
+                        } else if ((isHaste2 || isEnergised) && u.card.hp > 0) {
+                            log(`${u.card.name} ${isEnergised ? '(ENERGISED)' : '(HASTE2)'} strikes again!`);
+                            animateCard(getSlotCard('enemy', enemyIdx), 'animate-attack');
+                            u.status.exhausted = true;
                         }
                     }
+            }
+            );
 
                     // Reset enemy statuses and decrement temporary effects
-                    if(u) {
+                if (u) { {
                         if (u.status.invincible > 0) u.status.invincible--;
                         if (u.status.shield > 0) u.status.shield--;
                         if (u.status.reflect > 0) u.status.reflect--;
@@ -3126,7 +3466,7 @@ lucide.createIcons();
                         if (u.status.silenced > 0) u.status.silenced--;
                         u.status.justPlayed = false;
                     }
-                });
+                };
                 
                 // 4. Resource Refresh
                 if(state.maxMana < 10) state.maxMana++;
@@ -3164,1806 +3504,385 @@ lucide.createIcons();
                             await triggerCardEvent('onTurnStart', unit, { side: group.side, slot: idx, board: group.board });
                         }
                     }
-                }
-                
-                draw();
+                };
                 updateBattleUI();
-                log("YOUR CYCLE.");
                 checkVictory();
-            }, 600);
-        }
+            }, 500);
 
         function checkVictory() {
-            if(state.eHp <= 0) { 
-                alert("VICTORY - ENEMY NEXUS DESTROYED"); 
-                showScreen('lobby'); 
+            if (state.pHp <= 0) {
+                log("ENEMY VICTORY!");
+                // TODO: Show victory screen for enemy
+            } else if (state.eHp <= 0) {
+                log("PLAYER VICTORY!");
+                // TODO: Show victory screen for player
             }
-            else if(state.pHp <= 0) { 
-                alert("DEFEAT - YOUR NEXUS HAS FALLEN"); 
-                showScreen('lobby'); 
+        }
+    }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // OWNED CARDS — single source of truth: localStorage key 'ownedCards'
+        // All screens (lobby, my collection, library) read from this same place.
+        // ══════════════════════════════════════════════════════════════════════════
+
+        /** Returns a Set of card names the player currently owns. */
+        function getOwnedCardNames() {
+            if (typeof playerData !== 'undefined' && playerData && playerData.collection)
+                return new Set(playerData.collection.filter(c => c.count > 0).map(c => c.name));
+            try { return new Set(JSON.parse(localStorage.getItem('ownedCards') || '[]')); }
+            catch (_) { return new Set(); }
+        }
+
+        /** Returns a Map of cardName → count for all owned cards. */
+        function getOwnedCardCounts() {
+            if (typeof playerData !== 'undefined' && playerData && playerData.collection)
+                return new Map(playerData.collection.filter(c => c.count > 0).map(c => [c.name, c.count]));
+            try {
+                const arr = JSON.parse(localStorage.getItem('ownedCards') || '[]');
+                const map = new Map();
+                for (const name of arr) map.set(name, (map.get(name) || 0) + 1);
+                return map;
+            } catch (_) { return new Map(); }
+        }
+
+        /** Add or remove a card from the owned set, then refresh all affected UI. */
+        function markCardOwned(cardName, owned) {
+            let s = getOwnedCardNames();
+            if (owned) s.add(cardName); else s.delete(cardName);
+            localStorage.setItem('ownedCards', JSON.stringify([...s]));
+            updateLobbyStats();
+            // Refresh whichever screen is visible
+            if (state.activeScreen === 'library')    renderLibrary();
+            if (state.activeScreen === 'collection') renderCollection();
+        }
+
+        // ── Lobby stats ───────────────────────────────────────────────────────────
+        function updateLobbyStats() {
+            const collectible = (ALL_CHARS || []).filter(c => !c.isKeyCard);
+            const owned = getOwnedCardNames();
+            const count = collectible.filter(c => owned.has(c.name)).length;
+            const el = document.getElementById('lobby-collection-count');
+            if (el) el.textContent = count;
+        }
+
+        // ── My Collection screen ──────────────────────────────────────────────────
+        let _collectionRarity = 'ALL';
+        let _collectionView   = 'owned'; // 'owned' | 'all'
+
+        /** Called by the All / Owned toggle buttons on the My Collection screen. */
+        function setCollectionOwned(view, btn) {
+            _collectionView = view || 'owned';
+            document.querySelectorAll('#collection-toggle .collection-filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderCollection();
+        }
+
+        /** Called by the rarity pills on the My Collection screen. */
+        function setCollectionFilter(rarity, btn) {
+            _collectionRarity = (rarity || 'ALL').toUpperCase();
+            document.querySelectorAll('#collection-rarity-filters .collection-filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderCollection();
+        }
+
+        /** Render the My Collection grid. */
+        async function renderCollection() {
+            const grid = document.getElementById('collection-grid');
+            if (!grid) return;
+
+            if (!ALL_CHARS || !ALL_CHARS.length) {
+                grid.innerHTML = '<p class="text-white/40 text-center p-8 col-span-full">Loading cards…</p>';
+                return;
             }
+
+            const owned       = getOwnedCardNames();
+            const searchQuery = (document.getElementById('collection-search')?.value || '').toLowerCase().trim();
+            const collectible = ALL_CHARS.filter(c => !c.isKeyCard);
+
+            // Update count label
+            const totalOwned = collectible.filter(c => owned.has(c.name)).length;
+            const label = document.getElementById('collection-count-label');
+            if (label) label.textContent = `${totalOwned} / ${collectible.length} cards owned`;
+
+            // Filter
+            const cards = collectible.filter(c => {
+                if (_collectionView === 'owned' && !owned.has(c.name)) return false;
+                if (_collectionRarity !== 'ALL' && (c.rarity || '').toUpperCase() !== _collectionRarity) return false;
+                if (searchQuery && !c.name.toLowerCase().includes(searchQuery) &&
+                    !(c.series || '').toLowerCase().includes(searchQuery)) return false;
+                return true;
+            });
+
+            grid.innerHTML = '';
+            if (!cards.length) {
+                grid.innerHTML = '<p class="text-white/40 text-center p-8 col-span-full">No cards match your filters.</p>';
+                return;
+            }
+
+            for (const card of cards) {
+                const isOwned = owned.has(card.name);
+                const safeFB  = (card.imageFallback || '').replace(/'/g, "\\'");
+                const div = document.createElement('div');
+                div.className = 'collection-card-wrap';
+                div.innerHTML = `
+                    <div class="card-nexus card-vault rarity-${(card.rarity||'common').toLowerCase()} ${isOwned ? '' : 'opacity-40 grayscale'}">
+                        <div class="cost-badge">${card.cost ?? '?'}</div>
+                        <div class="rarity-badge">${card.rarity || ''}</div>
+                        ${card.rank ? `<div class="rank-badge rank-${card.rank.toUpperCase()}">${card.rank.toUpperCase()}</div>` : ''}
+                        <div class="card-title-container flex-1 flex flex-col items-center pointer-events-none">
+                            <img src="${card.image}" onerror="if(this.src!=='${safeFB}')this.src='${safeFB}'" crossorigin="anonymous" alt="${card.name}">
+                            <div class="text-[9px] font-black leading-tight uppercase px-1 text-center">${card.name}</div>
+                        </div>
+                        <div class="description-box" style="font-size:7px;padding:4px 6px;overflow:hidden;max-height:60px;opacity:0.8">
+                            ${(card.description||'').replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>').substring(0,120)}
+                        </div>
+                        <div class="stat-badge atk-badge">${card.atk ?? '?'}</div>
+                        <div class="stat-badge hp-badge">${card.hp ?? '?'}</div>
+                    </div>
+                    ${isOwned ? '<div class="collection-owned-tick">✓</div>' : ''}`;
+                grid.appendChild(div);
+            }
+
+            // Also keep lobby in sync
+            updateLobbyStats();
         }
 
-        let isDialogueActive = false;
+        // ── Library screen ────────────────────────────────────────────────────────
+        let _libraryViewMode = 'all';   // 'all' | 'owned' | 'missing'
+        let _libraryRarity   = 'ALL';
 
-        function showDialogue(speaker, text) {
-            isDialogueActive = true;
-            const dialogBox = document.getElementById('vn-dialogue');
-            const speakerName = document.getElementById('vn-speaker');
-            const dialogText = document.getElementById('vn-text');
-            
-            speakerName.innerText = "Opponent";
-            dialogText.innerText = ""; // Clear for typewriter effect
-            dialogBox.classList.remove('hidden');
-            
-            // Simple typewriter effect
-            let i = 0;
-            const typeWriter = setInterval(() => {
-                dialogText.innerText += text.charAt(i);
-                i++;
-                if (i >= text.length) clearInterval(typeWriter);
-            }, 30); // Speed of typing
+        function setLibraryView(mode, btn) {
+            _libraryViewMode = mode || 'all';
+            document.querySelectorAll('.lib-view-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderLibrary();
         }
 
-        // Click to dismiss dialogue
-        document.getElementById('vn-dialogue').addEventListener('click', () => {
-            document.getElementById('vn-dialogue').classList.add('hidden');
-            isDialogueActive = false;
-            // Resume game logic if needed here
-        });
-
-/* ============================================================
-   MIKU.BATTLE.GG — ARENA ANIMATION UPGRADES  (scripts patch)
-   ============================================================
-   HOW TO INTEGRATE
-   ────────────────
-   1. Paste this ENTIRE file at the very BOTTOM of scripts.js,
-      just before the final closing line (after window.onload).
-
-   2. Then find and REPLACE these three existing functions
-      in your original scripts.js with the upgraded versions
-      provided in the "REPLACE THESE" section below.
-
-   3. In the existing updateBattleUI function, add these two
-      lines right before the closing brace:
-          applyHandFan();
-          markReadyCards();
-
-   That's it. No other changes needed.
-   ============================================================ */
-
-
-/* ══════════════════════════════════════════════════════════
-   SECTION A — NEW UTILITY FUNCTIONS  (just paste these in)
-   ══════════════════════════════════════════════════════════ */
-
-/**
- * spawnDamagePopup(el, text, type)
- * Spawns a floating damage/heal number over a DOM element.
- */
-function spawnDamagePopup(el, text, type = 'dmg') {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const popup = document.createElement('div');
-    popup.className = `dmg-popup ${type}${Math.abs(parseInt(text)) >= 5 ? ' big' : ''}`;
-    popup.textContent = text;
-    popup.style.left = `${rect.left + rect.width / 2 - 20}px`;
-    popup.style.top  = `${rect.top  + rect.height / 2}px`;
-    document.body.appendChild(popup);
-    popup.addEventListener('animationend', () => popup.remove());
-}
-
-/**
- * shakeArena(intense)
- * Shakes the arena div when a nexus is hit directly.
- */
-function shakeArena(intense = false) {
-    const arena = document.getElementById('screen-arena');
-    if (!arena) return;
-    arena.classList.remove('arena-shake');
-    void arena.offsetWidth;
-    arena.classList.add('arena-shake');
-    setTimeout(() => arena.classList.remove('arena-shake'), 500);
-
-    const flashClass = intense ? 'flash-red' : 'flash-indigo';
-    arena.classList.remove('flash-red', 'flash-indigo');
-    void arena.offsetWidth;
-    arena.classList.add(flashClass);
-    setTimeout(() => arena.classList.remove(flashClass), 450);
-}
-
-/**
- * spawnImpactBurst(el, color)
- * Spawns ~10 small particles radiating outward from element's centre.
- */
-function spawnImpactBurst(el, color = '#f87171') {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width  / 2;
-    const cy = rect.top  + rect.height / 2;
-    for (let i = 0; i < 10; i++) {
-        const angle = (i / 10) * Math.PI * 2;
-        const dist  = 35 + Math.random() * 45;
-        const p = document.createElement('div');
-        p.className = 'impact-particle';
-        p.style.cssText = `
-            left: ${cx - 3}px; top: ${cy - 3}px;
-            background: ${color};
-            --px: ${Math.cos(angle) * dist}px;
-            --py: ${Math.sin(angle) * dist}px;
-            animation-duration: ${0.35 + Math.random() * 0.25}s;
-        `;
-        document.body.appendChild(p);
-        p.addEventListener('animationend', () => p.remove());
-    }
-}
-
-/**
- * showTurnBanner(who)
- * Shows a cinematic "YOUR TURN" / "ENEMY TURN" banner.
- */
-function showTurnBanner(who) {
-    const existing = document.getElementById('turn-banner');
-    if (existing) existing.remove();
-    const label   = who === 'player' ? 'YOUR TURN' : 'ENEMY TURN';
-    const wrapper = document.createElement('div');
-    wrapper.id    = 'turn-banner';
-    wrapper.innerHTML = `<div class="turn-banner-inner ${who}">${label}</div>`;
-    document.body.appendChild(wrapper);
-    setTimeout(() => wrapper.remove(), 1700);
-}
-
-/**
- * showEndModal(result)
- * Replaces the plain alert() for victory / defeat.
- */
-function showEndModal(result) {
-    const existing = document.getElementById('end-modal');
-    if (existing) existing.remove();
-    const isVictory = result === 'victory';
-    const modal = document.createElement('div');
-    modal.id = 'end-modal';
-    modal.innerHTML = `
-        <div class="end-modal-box ${result}">
-            <div class="end-title">${isVictory ? 'VICTORY' : 'DEFEAT'}</div>
-            <div class="end-sub">${isVictory ? 'Enemy Nexus Destroyed' : 'Your Nexus Has Fallen'}</div>
-            <button class="end-modal-btn" onclick="
-                document.getElementById('end-modal').remove();
-                showScreen('lobby');
-            ">${isVictory ? 'Return to Lobby' : 'Try Again'}</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-/**
- * animateCardDeath(el, onNullCallback)
- *
- * KEY FIX: We do NOT remove the element here. updateBattleUI re-renders
- * the slot from scratch, so removing early causes the card to vanish
- * immediately. Instead: play the animation, call onNullCallback (which
- * sets the board slot to null), then let the next updateBattleUI clear
- * the DOM naturally.
- *
- * The animation duration in CSS is 0.55s. We add a tiny buffer (600ms)
- * so the visual completes before the grid re-renders.
- */
-function animateCardDeath(el, onNullCallback) {
-    if (!el) { onNullCallback?.(); return; }
-    el.classList.add('is-dying');
-    // Wait for animation then null the state — caller's updateBattleUI
-    // will re-render the slot to an empty dashed box.
-    setTimeout(async () => {
-        onNullCallback?.();
-    }, 580);
-}
-
-/**
- * applyHandFan()
- * Sets --fan-i and --fan-n CSS vars so the hand-fan arc works.
- * Call this after updateBattleUI.
- */
-function applyHandFan() {
-    const cards = document.querySelectorAll('#player-hand .card-nexus');
-    const n = cards.length;
-    cards.forEach((card, i) => {
-        card.style.setProperty('--fan-i', i);
-        card.style.setProperty('--fan-n', n);
-    });
-}
-
-/**
- * markReadyCards()
- * Adds .ready-to-attack to player board cards that can still act.
- */
-function markReadyCards() {
-    for (let i = 0; i < 4; i++) {
-        const el   = document.querySelector(`#player-slot-${i} .card-nexus`);
-        const unit = state.pBoard[i];
-        if (!el || !unit) continue;
-        if (!unit.status.exhausted && !unit.status.silenced) {
-            el.classList.add('ready-to-attack');
-        } else {
-            el.classList.remove('ready-to-attack');
+        function setLibraryFilter(rarity, btn) {
+            _libraryRarity = (rarity || 'ALL').toUpperCase();
+            document.querySelectorAll('.lib-rarity-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderLibrary();
         }
-    }
-}
 
+        // ── Series Banner System ──────────────────────────────────────────────────
+        // Since the 'banners' bucket is public, we construct URLs directly from the
+        // series name. No API listing needed — onerror on the img hides it if missing.
+        const BANNER_BUCKET = 'banners';
 
-/* ══════════════════════════════════════════════════════════
-   SECTION B — REPLACE THESE FUNCTIONS IN scripts.js
-   ══════════════════════════════════════════════════════════ */
+        const BANNER_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 
-/* ── REPLACE: checkVictory ───────────────────────────────── */
-function checkVictory() {
-    if (state.eHp <= 0) {
-        showEndModal('victory');
-        showScreen('lobby');
-    } else if (state.pHp <= 0) {
-        showEndModal('defeat');
-        showScreen('lobby');
-    }
-}
+        function slugify(str) {
+            return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        }
 
-/* ── REPLACE: endTurn ────────────────────────────────────── */
-async function endTurn() {
-    // 1. Trigger End of Turn effects
-    [
-        { side: 'player', board: state.pBoard },
-        { side: 'enemy',  board: state.eBoard }
-    ].forEach(async group => {
-        group.board.forEach(async (unit, idx) => {
-            if (unit) {
-                await triggerCardEvent('onTurnEnd', unit, { side: group.side, slot: idx, board: group.board });
-                if (group.side === 'player' && unit.status.exhausted === false) {
-                    await triggerCardEvent('whenNotAttack', unit, { side: group.side, slot: idx, board: group.board });
-                    log(`${unit.card.name.toUpperCase()} DID NOT ATTACK, TRIGGERING ABILITY!`);
+        function toStorageName(str) {
+            // Normalize unicode (ā → a), strip non-alphanumeric/space chars, then underscore-join
+            const normalized = str.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // strip diacritics
+            return normalized.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        }
+
+        // No API call needed — bucket is public, URLs are constructed directly.
+        // The rendered <img> uses onerror to try fallback extensions, then hides itself.
+        async function loadBanners() { /* no-op */ }
+
+        function getBannerCandidateUrls(series) {
+            const clean      = toStorageName(series);   // atarashi_gakko_secret_garden
+            const slug       = slugify(series);          // atarashi-gakko-secret-garden (legacy)
+            const base       = `${SUPABASE_URL}/storage/v1/object/public/${BANNER_BUCKET}`;
+            const urls = [];
+            for (const ext of BANNER_EXTS) urls.push(`${base}/${clean}.${ext}`);
+            for (const ext of BANNER_EXTS) urls.push(`${base}/${slug}.${ext}`);
+            return urls;
+        }
+
+        async function renderLibrary() {
+            const content   = document.getElementById('library-content');
+            const seriesNav = document.getElementById('lib-series-nav');
+            if (!content) return;
+
+            if (!ALL_CHARS || !ALL_CHARS.length) {
+                content.innerHTML = `<div class="lib-empty-state"><div class="lib-empty-icon">📦</div><div class="lib-empty-title">Loading cards…</div></div>`;
+                return;
+            }
+
+            const owned       = getOwnedCardNames();
+            const ownedCounts = getOwnedCardCounts();
+            const searchQuery = (document.getElementById('library-search')?.value || '').toLowerCase().trim();
+            const collectible = ALL_CHARS.filter(c => !c.isKeyCard);
+
+            // ── Stat counters & progress bar ──────────────────────────────────────
+            const totalCount   = collectible.length;
+            const ownedCount   = collectible.filter(c => owned.has(c.name)).length;
+            const missingCount = totalCount - ownedCount;
+            const pct          = totalCount > 0 ? Math.round((ownedCount / totalCount) * 100) : 0;
+
+            const $ = id => document.getElementById(id);
+            if ($('lib-owned-count'))   $('lib-owned-count').textContent   = ownedCount;
+            if ($('lib-missing-count')) $('lib-missing-count').textContent = missingCount;
+            if ($('lib-total-count'))   $('lib-total-count').textContent   = totalCount;
+            if ($('lib-pct-count'))     $('lib-pct-count').textContent     = pct + '%';
+            if ($('lib-global-bar'))    $('lib-global-bar').style.width    = pct + '%';
+
+            const RARITY_COLOR = { COMMON:'#475569', UNCOMMON:'#059669', RARE:'#2563eb', EPIC:'#9333ea', LEGENDARY:'#d97706' };
+            const RARITY_ICON  = { COMMON:'◆', UNCOMMON:'◆◆', RARE:'◆◆◆', EPIC:'◈', LEGENDARY:'★' };
+
+            // ── Filter ────────────────────────────────────────────────────────────
+            const filtered = collectible.filter(c => {
+                if (_libraryViewMode === 'owned'   && !owned.has(c.name)) return false;
+                if (_libraryViewMode === 'missing' &&  owned.has(c.name)) return false;
+                if (_libraryRarity !== 'ALL' && (c.rarity || '').toUpperCase() !== _libraryRarity) return false;
+                if (searchQuery && !c.name.toLowerCase().includes(searchQuery) &&
+                    !(c.series || '').toLowerCase().includes(searchQuery)) return false;
+                return true;
+            });
+
+            // ── Group by series ───────────────────────────────────────────────────
+            const seriesMap = new Map();
+            for (const c of collectible) {
+                const s = c.series || 'Uncategorised';
+                if (!seriesMap.has(s)) seriesMap.set(s, { all: [], shown: [] });
+                seriesMap.get(s).all.push(c);
+            }
+            for (const c of filtered) {
+                const s = c.series || 'Uncategorised';
+                seriesMap.get(s).shown.push(c);
+            }
+
+            // ── Series nav ────────────────────────────────────────────────────────
+            if (seriesNav) {
+                seriesNav.innerHTML = '';
+                for (const [series, { all }] of seriesMap) {
+                    if (!all.length) continue;
+                    const ownedInSeries = all.filter(c => owned.has(c.name)).length;
+                    const complete      = ownedInSeries === all.length;
+                    const anchor        = 'lib-series-' + series.replace(/\s+/g, '-');
+                    const pill = document.createElement('button');
+                    pill.className = 'lib-series-pill' + (complete ? ' complete' : '');
+                    pill.innerHTML = `${series} <span class="lib-series-pill-count">${ownedInSeries}/${all.length}</span>`;
+                    pill.onclick = () => { const t = document.getElementById(anchor); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+                    seriesNav.appendChild(pill);
                 }
             }
-        });
-    });
 
-    updateBattleUI();
-    log("ENEMY CYCLE STARTING...");
-    showTurnBanner('enemy');
+            // ── Render content ────────────────────────────────────────────────────
+            content.innerHTML = '';
+            const hasAny = [...seriesMap.values()].some(v => v.shown.length > 0);
+            if (!hasAny) {
+                content.innerHTML = `<div class="lib-empty-state"><div class="lib-empty-icon">🔍</div><div class="lib-empty-title">No cards found</div><div class="lib-empty-sub">Try adjusting your filters or search</div></div>`;
+                return;
+            }
 
-    const collectibleCards = ALL_CHARS.filter(c => !c.isKeyCard);
+            for (const [series, { all, shown }] of seriesMap) {
+                if (!shown.length) continue;
+                const anchor        = 'lib-series-' + series.replace(/\s+/g, '-');
+                const ownedInSeries = all.filter(c => owned.has(c.name)).length;
+                const complete      = ownedInSeries === all.length;
+                const pctSeries     = all.length > 0 ? Math.round((ownedInSeries / all.length) * 100) : 0;
 
-    setTimeout(async () => {
-        // 2. AI plays a card
-        const slot = state.eBoard.findIndex(s => s === null);
-        if (slot !== -1) {
-            const c = collectibleCards[Math.floor(Math.random() * collectibleCards.length)];
-            const enemyUnit = {
-                card: cloneCard(c),
-                status: { exhausted: true, justPlayed: true, silenced: false }
-            };
-            state.eBoard[slot] = enemyUnit;
-            await triggerCardEvent('onPlay', enemyUnit, { slot, side: 'enemy', board: state.eBoard });
-        }
+                const section = document.createElement('div');
+                section.className = 'lib-series-section';
+                section.id = anchor;
 
-        // 3. AI Attacks
-        state.eBoard.forEach(async (u, enemyIdx) => {
-            if (u && !u.status.exhausted && !u.status.silenced) {
+                const bannerCandidates = getBannerCandidateUrls(series);
+                const bannerDataAttr   = bannerCandidates.map(u => encodeURIComponent(u)).join(',');
+                const badgeHtml = complete
+                    ? '<span class="lib-complete-badge">✦ Complete</span>'
+                    : `<span class="lib-missing-badge">${all.length - ownedInSeries} missing</span>`;
 
-                const performAIStrike = async () => {
-                    let targetType = 'nexus';
-                    let targetIdx  = -1;
+                // Build a self-healing banner: inject all candidate URLs as hidden imgs.
+                // The first one that loads applies the background; others are ignored.
+                const firstUrl = bannerCandidates[0];
+                const sectionId = anchor;
 
-                    const guardIndex = state.pBoard.findIndex(v => v && v.card.ability === 'guard');
-                    if (guardIndex !== -1) {
-                        targetType = 'unit';
-                        targetIdx  = guardIndex;
+                section.innerHTML = `
+                    <div class="lib-series-banner lib-series-banner--pending"
+                         id="banner-wrap-${sectionId}"
+                         style="background-image:url('${firstUrl}')">
+                        <div class="lib-series-banner-overlay"></div>
+                        <div class="lib-series-banner-content">
+                            <span class="lib-series-name lib-series-name--banner">${series}</span>
+                            <span class="lib-series-badge">${badgeHtml}</span>
+                        </div>
+                    </div>
+                    <div class="lib-series-progress-wrap lib-series-progress-wrap--below" id="banner-prog-${sectionId}">
+                        <div class="lib-series-progress-bar" style="width:${pctSeries}%"></div>
+                    </div>
+                    <div class="lib-cards-grid"></div>`;
+
+                // Probe candidates in order; on first success apply it, on total failure revert to plain header
+                (function probeBanners(urls) {
+                    if (!urls.length) {
+                        // No banner found — revert to plain header
+                        const bw = document.getElementById('banner-wrap-' + sectionId);
+                        const bp = document.getElementById('banner-prog-' + sectionId);
+                        if (bw) bw.outerHTML = `
+                            <div class="lib-series-header">
+                                <div class="lib-series-header-left">
+                                    <span class="lib-series-name">${series}</span>
+                                    <span class="lib-series-badge">${badgeHtml}</span>
+                                </div>
+                                <div class="lib-series-progress-wrap">
+                                    <div class="lib-series-progress-bar" style="width:${pctSeries}%"></div>
+                                </div>
+                            </div>`;
+                        if (bp) bp.remove();
+                        return;
+                    }
+                    const url = urls.shift();
+                    const img = new Image();
+                    img.onload = () => {
+                        const bw = document.getElementById('banner-wrap-' + sectionId);
+                        if (bw) {
+                            bw.style.backgroundImage = `url('${url}')`;
+                            bw.classList.remove('lib-series-banner--pending');
+                        }
+                    };
+                    img.onerror = () => probeBanners(urls);
+                    img.src = url;
+                })(bannerCandidates.slice());
+
+                const grid = section.querySelector('.lib-cards-grid');
+
+                for (const card of shown) {
+                    const isOwned    = owned.has(card.name);
+                    const rarityKey  = (card.rarity || 'COMMON').toUpperCase();
+                    const rarityColor = RARITY_COLOR[rarityKey] || '#475569';
+                    const safeFB     = (card.imageFallback || '').replace(/'/g, "\\'");
+
+                    if (isOwned) {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'lib-card-owned-wrap';
+                        const countBadge = document.createElement('span');
+                        countBadge.className = 'lib-count-badge';
+                        countBadge.textContent = `✦ ×${ownedCounts.get(card.name) || 1}`;
+                        wrap.appendChild(countBadge);
+                        const cardDiv = await createCardUI(card, 0, 'preview', {}, true);
+                        wrap.appendChild(cardDiv);
+                        grid.appendChild(wrap);
                     } else {
-                        const validTargets = [{ type: 'nexus' }];
-                        state.pBoard.forEach((pUnit, idx) => {
-                            if (pUnit) validTargets.push({ type: 'unit', idx });
-                        });
-                        const chosen = validTargets[Math.floor(Math.random() * validTargets.length)];
-                        targetType = chosen.type;
-                        targetIdx  = chosen.idx;
-                    }
-
-                    if (targetType === 'nexus') {
-                        state.pHp -= u.card.atk;
-                        log(`${u.card.name} hits your nexus for ${u.card.atk}.`);
-                        spawnDamagePopup(document.getElementById('player-hp'), `-${u.card.atk}`, 'dmg');
-                        shakeArena(u.card.atk >= 4);
-                    } else {
-                        const targetUnit = state.pBoard[targetIdx];
-                        const preDefHp   = targetUnit.card.hp;
-                        const defEl      = getSlotCard('player', targetIdx);
-                        const atkEl      = getSlotCard('enemy', enemyIdx);
-
-                        await triggerCardEvent('whenAttacked', targetUnit, { target: u, slot: targetIdx, side: 'player', board: state.pBoard });
-                        await triggerCardEvent('whenAttacked', u, { target: targetUnit, slot: enemyIdx, side: 'enemy', board: state.eBoard });
-
-                        if (targetUnit.status && targetUnit.status.invincible > 0) {
-                            log(`INVINCIBLE: ${targetUnit.card.name} blocked the hit!`);
-                        } else {
-                            targetUnit.card.hp -= u.card.atk;
-                            spawnDamagePopup(defEl, `-${u.card.atk}`, 'dmg');
-                            spawnImpactBurst(defEl, '#f87171');
-                            animateCard(defEl, 'animate-hit-flicker');
-                        }
-
-                        if (u.status && u.status.invincible > 0) {
-                            log(`INVINCIBLE: ${u.card.name} takes no counter damage!`);
-                        } else {
-                            u.card.hp -= targetUnit.card.atk;
-                            spawnDamagePopup(atkEl, `-${targetUnit.card.atk}`, 'dmg');
-                        }
-
-                        // Death: animate, then null state — updateBattleUI at bottom cleans up DOM
-                        if (targetUnit.card.hp <= 0) {
-                            log(`${targetUnit.card.name} is destroyed.`);
-                            await triggerCardEvent('onDeath', targetUnit, { slot: targetIdx, side: 'player', board: state.pBoard });
-                            if (u.card.ability === 'berserk') {
-                                const overflow = Math.max(0, u.card.atk - preDefHp);
-                                if (overflow > 0) {
-                                    state.pHp -= overflow;
-                                    log(`BERSERK OVERFLOW: ${overflow} damage to nexus.`);
-                                    shakeArena(true);
-                                }
-                            }
-                            animateCardDeath(defEl, () => { state.pBoard[targetIdx] = null; });
-                        }
-
-                        if (u.card.hp <= 0) {
-                            await triggerCardEvent('onDeath', u, { slot: enemyIdx, side: 'enemy', board: state.eBoard });
-                            animateCardDeath(atkEl, () => { state.eBoard[enemyIdx] = null; });
-                        }
-                    }
-                };
-
-                performAIStrike();
-
-                if (u && u.card.hp > 0 && u.card.ability === 'haste2' && !u.status.exhausted) {
-                    log(`HASTE2: ${u.card.name} strikes again!`);
-                    performAIStrike();
-                }
-            }
-
-            if (u) {
-                if (u.status.invincible > 0) u.status.invincible--;
-                if (u.status.shield > 0) u.status.shield--;
-                if (u.status.reflect > 0) u.status.reflect--;
-                if (u.status.invisible > 0) u.status.invisible--;
-                u.status.exhausted  = false;
-                if (u.status.silenced > 0) u.status.silenced--;
-                u.status.justPlayed = false;
-            }
-        });
-
-        // 4. Resource Refresh
-        if (state.maxMana < 10) state.maxMana++;
-        state.mana = state.maxMana;
-
-        // 5. Reset player statuses
-        state.pBoard.forEach(u => {
-            if (u) {
-                if (u.status.invincible > 0) u.status.invincible--;
-                if (u.status.shield > 0) u.status.shield--;
-                if (u.status.reflect > 0) u.status.reflect--;
-                if (u.status.invisible > 0) u.status.invisible--;
-                u.status.exhausted  = false;
-                u.status.justPlayed = false;
-                if (u.status.silenced > 0) u.status.silenced--;
-            }
-        });
-
-        // 6. Trigger OnTurnStart effects
-        [
-            { side: 'player', board: state.pBoard },
-            { side: 'enemy',  board: state.eBoard }
-        ].forEach(async group => {
-            group.board.forEach(async (unit, idx) => {
-                if (unit) await triggerCardEvent('onTurnStart', unit, { side: group.side, slot: idx, board: group.board });
-            });
-        });
-
-        draw();
-        // Delay final UI update slightly so death animations can play out first
-        setTimeout(() => {
-            updateBattleUI();
-            log("YOUR CYCLE.");
-            checkVictory();
-            showTurnBanner('player');
-        }, 620);
-
-    }, 600);
-}
-
-/* ── REPLACE: handleStrike ───────────────────────────────── */
-async function handleStrike(pIdx, eIdx) {
-    const atk = state.pBoard[pIdx];
-    const def = state.eBoard[eIdx];
-
-    if (!atk || !def || atk.status.exhausted) return;
-
-    const guard = state.eBoard.some(u => u && u.card.ability === 'guard');
-    if (guard && def.card.ability !== 'guard' && atk.card.ability !== 'snipe') {
-        log("GUARD ACTIVE: TARGET BLOCKED.");
-        return;
-    }
-    if (atk.status.silenced) {
-        log(`${atk.card.name} is silenced and cannot attack this round.`);
-        return;
-    }
-
-    const atkEl = getSlotCard('player', pIdx);
-    const defEl = getSlotCard('enemy',  eIdx);
-    const atkRect = atkEl?.getBoundingClientRect();
-    const defRect = defEl?.getBoundingClientRect();
-
-    atkEl?.style.setProperty('--slam-target-x', `${(defRect?.x ?? 0) - (atkRect?.x ?? 0)}px`);
-    atkEl?.style.setProperty('--slam-target-y', `${(defRect?.y ?? 0) - (atkRect?.y ?? 0)}px`);
-
-    animateCard(atkEl, 'animate-slam-up');
-
-    setTimeout(async () => {
-        animateCard(atkEl, 'animate-hit-flicker');
-        animateCard(defEl, 'animate-hit-flicker');
-        spawnImpactBurst(defEl, '#f87171');
-        spawnImpactBurst(atkEl, '#818cf8');
-    }, 200);
-
-    setTimeout(async () => {
-        if (atk.card.ability === 'heal') animateCard(document.getElementById('player-hp'), 'animate-heal');
-
-        const preDefHp = def.card.hp;
-
-        await triggerCardEvent('whenAttacked', def, { target: atk, slot: eIdx, side: 'enemy', board: state.eBoard });
-        await triggerCardEvent('whenAttacked', atk, { target: def, slot: pIdx, side: 'player', board: state.pBoard });
-
-        // Apply damage
-        if (def.status && def.status.invincible > 0) {
-            log(`${def.card.name.toUpperCase()} IS INVINCIBLE! NO DAMAGE TAKEN.`);
-            spawnDamagePopup(defEl, 'BLOCK', 'buff');
-        } else {
-            def.card.hp -= atk.card.atk;
-            spawnDamagePopup(defEl, `-${atk.card.atk}`, 'dmg');
-        }
-
-        if (atk.status && atk.status.invincible > 0) {
-            log(`${atk.card.name.toUpperCase()} IS INVINCIBLE! NO COUNTER DAMAGE.`);
-            spawnDamagePopup(atkEl, 'BLOCK', 'buff');
-        } else {
-            atk.card.hp -= def.card.atk;
-            spawnDamagePopup(atkEl, `-${def.card.atk}`, 'dmg');
-        }
-
-        const isHaste2      = atk.card.ability === 'haste2';
-        const attackContext = {
-            target: def,
-            targetIdx: eIdx,
-            defenderHp: preDefHp,
-            side: 'player',
-            board: state.pBoard,
-            opponentBoard: state.eBoard
-        };
-
-        // Abilities
-        if (atk.card.ability === 'silence') {
-            def.status.silenced = true;
-            log(`${def.card.name} is SILENCED.`);
-            animateCard(defEl, 'animate-ability');
-        }
-        if (atk.card.ability === 'berserk' && def.card.hp <= 0) {
-            const overflow = Math.max(0, atk.card.atk - preDefHp);
-            if (overflow > 0) {
-                state.eHp -= overflow;
-                log(`BERSERK OVERFLOW: ${overflow} DMG TO ENEMY NEXUS`);
-                animateCard(document.getElementById('enemy-hp'), 'animate-ability');
-                spawnDamagePopup(document.getElementById('enemy-hp'), `-${overflow}`, 'dmg');
-                shakeArena(true);
-            }
-        }
-        if (atk.card.ability === 'heal') {
-            const healAmount = Math.min(5, Math.ceil(atk.card.atk / 2));
-            state.pHp = Math.min(30, state.pHp + healAmount);
-            log(`HEAL: ${healAmount} TO YOUR NEXUS`);
-            spawnDamagePopup(document.getElementById('player-hp'), `+${healAmount}`, 'heal');
-        }
-        if (atk.card.ability === 'splash') {
-            [eIdx - 1, eIdx + 1].forEach(adj => {
-                if (state.eBoard[adj]) {
-                    state.eBoard[adj].card.hp -= 1;
-                    const adjEl = getSlotCard('enemy', adj);
-                    spawnDamagePopup(adjEl, '-1', 'dmg');
-                    if (state.eBoard[adj].card.hp <= 0) {
-                        log(`${state.eBoard[adj].card.name} TAKES SPLASH AND DIES`);
-                        animateCardDeath(adjEl, () => { state.eBoard[adj] = null; });
-                    } else {
-                        log(`${state.eBoard[adj].card.name} TAKES SPLASH`);
+                        const miss = document.createElement('div');
+                        miss.className = 'lib-missing-card';
+                        miss.style.setProperty('--rarity-color', rarityColor);
+                        miss.innerHTML = `
+                            <div class="lib-missing-inner">
+                                <div class="lib-missing-icon">${RARITY_ICON[rarityKey] || '?'}</div>
+                                <div class="lib-missing-name">${card.name}</div>
+                                <div class="lib-missing-rarity">${card.rarity || ''}</div>
+                            </div>`;
+                        grid.appendChild(miss);
                     }
                 }
-            });
-            animateCard(defEl, 'animate-ability');
-        }
-
-        await triggerCardEvent('onAttack', atk, attackContext);
-
-        // Death resolution — animate, null state, then single updateBattleUI below
-        if (def.card.hp <= 0) {
-            await triggerCardEvent('onDeath', def, { slot: eIdx, side: 'enemy', board: state.eBoard });
-            if (def.card.hp <= 0) animateCardDeath(defEl, () => { state.eBoard[eIdx] = null; });
-        }
-        if (atk.card.hp <= 0) {
-            await triggerCardEvent('onDeath', atk, { slot: pIdx, side: 'player', board: state.pBoard });
-            if (atk.card.hp <= 0) animateCardDeath(atkEl, () => { state.pBoard[pIdx] = null; });
-        }
-
-        if (!isHaste2) {
-            atk.status.exhausted = true;
-        } else if (atk.card.hp > 0 && def && def.card.hp > 0) {
-            log(`${atk.card.name} (HASTE2) strikes again!`);
-            animateCard(atkEl, 'animate-attack');
-            atk.status.exhausted = true;
-        }
-
-        // Delay the final UI update so death animations can play out (580ms) before the slot clears
-        setTimeout(() => {
-            updateBattleUI();
-            checkVictory();
-        }, 620);
-
-    }, 400);
-}
-
-/* ── REPLACE: dropOnNexus ────────────────────────────────── */
-async function dropOnNexus(side) {
-    if (!state.dragging) return;
-    if (state.dragging.type === 'board' && side === 'enemy') {
-        const atk   = state.pBoard[state.dragging.index];
-        const atkEl = getSlotCard('player', state.dragging.index);
-
-        if (!atk || atk.status.exhausted || atk.status.silenced) {
-            if (atk && atk.status.silenced) log(`${atk.card.name} is silenced and cannot strike nexus.`);
-            return;
-        }
-        if (state.eBoard.some(u => u && u.card.ability === 'guard')) return log("CORE GUARDED.");
-
-        animateCard(atkEl, 'animate-attack');
-        state.eHp -= atk.card.atk;
-        animateCard(document.getElementById('enemy-hp'), 'animate-ability');
-        spawnDamagePopup(document.getElementById('enemy-hp'), `-${atk.card.atk}`, 'dmg');
-        shakeArena(atk.card.atk >= 4);
-        await triggerCardEvent('onAttack', atk, {
-            target: 'enemyNexus',
-            side: 'player',
-            board: state.pBoard,
-            opponentBoard: state.eBoard
-        });
-
-        if (atk.card.ability === 'heal') {
-            const healAmount = Math.max(1, Math.floor(atk.card.atk / 2));
-            state.pHp = Math.min(30, state.pHp + healAmount);
-            log(`HEAL: +${healAmount} to your nexus.`);
-            animateCard(document.getElementById('player-hp'), 'animate-heal');
-            spawnDamagePopup(document.getElementById('player-hp'), `+${healAmount}`, 'heal');
-        }
-        if (atk.card.ability === 'haste2') {
-            state.eHp -= atk.card.atk;
-            log(`HASTE2 BONUS: additional ${atk.card.atk} DMG to nexus.`);
-            animateCard(document.getElementById('enemy-hp'), 'animate-ability');
-            spawnDamagePopup(document.getElementById('enemy-hp'), `-${atk.card.atk}`, 'dmg');
-            shakeArena(true);
-        }
-
-        atk.status.exhausted = true;
-        log(`DIRECT STRIKE: ${atk.card.atk} DMG.`);
-        updateBattleUI();
-        checkVictory();
-    }
-    state.dragging = null;
-}
-
-// Type map: keywords → entry type for colour coding
-const LOG_TYPE_RULES = [
-    { pattern: /deploy|played|summoned|placed/i,  type: 'deploy' },
-    { pattern: /damage|hit|strike|attack|dmg|overflow|splash/i, type: 'dmg' },
-    { pattern: /heal|recover|nexus.*\+/i,         type: 'heal'   },
-    { pattern: /destroy|die|death|eliminated|killed/i, type: 'death' },
-    { pattern: /your cycle|enemy cycle|round|turn|ready/i, type: 'system' },
-];
-
-function classifyLog(msg) {
-    for (const rule of LOG_TYPE_RULES) {
-        if (rule.pattern.test(msg)) return rule.type;
-    }
-    return 'info';
-}
-
-// Override the global log() function
-function log(m) {
-    // Keep ticker working if it still exists (graceful)
-    const t = document.getElementById('ticker');
-    if (t) t.innerText = `${m} • ${t.innerText}`.substring(0, 300);
-
-    // Add to VN log panel
-    const entries = document.getElementById('battle-log-entries');
-    if (!entries) return;
-
-    const type    = classifyLog(m);
-    const entry   = document.createElement('div');
-    entry.className = `log-entry type-${type}`;
-
-    const tagLabels = { dmg: 'ATK', heal: 'HEAL', deploy: 'DEPLOY', system: '—', death: 'RIP', info: '' };
-    const tag = tagLabels[type] || '';
-
-    entry.innerHTML = tag
-        ? `<span class="log-tag">${tag}</span>${m}`
-        : m;
-
-    entries.prepend(entry);
-
-    // Keep max 60 entries
-    while (entries.children.length > 60) entries.lastChild.remove();
-}
-
-/* ── VN Dialogue (redesigned) ───────────────────────────── */
-
-let _vnQueue        = [];   // queued {speaker, text, portrait} objects
-let _vnActive       = false;
-let _vnTyperTimer   = null;
-let _vnResolve      = null; // resolves the current waitForDialogue promise
-let _vnAutoClose    = false; // true = close without waiting for click
-
-/**
- * showDialogue(speaker, text, options)
- * options.portrait  – img src override
- * options.autoClose – auto-dismiss after typing (no click needed)
- * options.delay     – ms before showing (default 0)
- * Returns a Promise that resolves when dismissed.
- */
-function showDialogue(speaker, text, options = {}) {
-    return new Promise(resolve => {
-        _vnQueue.push({ speaker, text, options, resolve });
-        if (!_vnActive) _vnFlush();
-    });
-}
-
-function _vnFlush() {
-    if (_vnQueue.length === 0) { _vnActive = false; return; }
-    _vnActive = true;
-    const { speaker, text, options, resolve } = _vnQueue.shift();
-    _vnResolve = resolve;
-    _vnAutoClose = !!options.autoClose;
-
-    const box      = document.getElementById('vn-dialogue');
-    const spkEl    = document.getElementById('vn-speaker');
-    const txtEl    = document.getElementById('vn-text');
-    const portrait = document.getElementById('vn-portrait');
-
-    if (!box) { resolve?.(); _vnFlush(); return; }
-
-    // Set speaker name
-    spkEl.textContent = speaker;
-
-    // Set portrait image
-    const existingImg = portrait.querySelector('img');
-    const fallback    = portrait.querySelector('.portrait-fallback');
-
-    if (options.portrait) {
-        if (!existingImg) {
-            const img = document.createElement('img');
-            portrait.innerHTML = '';
-            portrait.appendChild(img);
-            img.src = options.portrait;
-            img.onerror = () => { portrait.innerHTML = '<div class="portrait-fallback">⚔️</div>'; };
-        } else {
-            existingImg.src = options.portrait;
-        }
-        if (fallback) fallback.style.display = 'none';
-    } else {
-        portrait.innerHTML = '<div class="portrait-fallback">⚔️</div>';
-    }
-
-    // Clear old text
-    txtEl.innerHTML = '';
-
-    // Detect emotion from text and apply to box
-    const EMOTION_CLASSES = ['vn-emotion-angry','vn-emotion-excited','vn-emotion-sad','vn-emotion-smug','vn-emotion-taunt','vn-emotion-fear'];
-    box.classList.remove(...EMOTION_CLASSES);
-    const t = text.toLowerCase();
-    if (/!{2,}|destroy|crush|die|pathetic|useless|fool/.test(t))          box.classList.add('vn-emotion-angry');
-    else if (/\?!|heh|finally|perfect|too easy|mine now/.test(t))          box.classList.add('vn-emotion-taunt');
-    else if (/ha|yes!|incredible|unstoppable|magnificent/.test(t))          box.classList.add('vn-emotion-excited');
-    else if (/sorry|forgive|i'm sorry|losing|won't last/.test(t))           box.classList.add('vn-emotion-sad');
-    else if (/as expected|predictable|obvious|i knew|of course/.test(t))    box.classList.add('vn-emotion-smug');
-    else if (/no\.\.\.|please|stop|i can't|overwhelmed|too strong/.test(t)) box.classList.add('vn-emotion-fear');
-
-    // Show the box
-    box.classList.remove('hidden');
-    box.classList.add('vn-visible');
-
-    // Typewriter
-    let i = 0;
-    clearInterval(_vnTyperTimer);
-    _vnTyperTimer = setInterval(() => {
-        if (i < text.length) {
-            txtEl.textContent += text.charAt(i);
-            i++;
-        } else {
-            clearInterval(_vnTyperTimer);
-            // Append blinking cursor
-            const cursor = document.createElement('span');
-            cursor.id = 'vn-cursor';
-            txtEl.appendChild(cursor);
-
-            if (_vnAutoClose) {
-                // Auto-dismiss after a brief pause
-                setTimeout(_vnDismiss, 1200);
+                content.appendChild(section);
             }
         }
-    }, 28);
-}
 
-function _vnDismiss() {
-    clearInterval(_vnTyperTimer);
-    const box = document.getElementById('vn-dialogue');
-    if (box) {
-        box.classList.remove('vn-visible');
-        box.classList.remove('vn-emotion-angry','vn-emotion-excited','vn-emotion-sad','vn-emotion-smug','vn-emotion-taunt','vn-emotion-fear');
-    }
-    const resolve = _vnResolve;
-    _vnResolve  = null;
-    _vnActive   = false;
-    resolve?.();
-    // Small gap between lines
-    setTimeout(_vnFlush, 180);
-}
-
-// Click-to-dismiss (only when not auto-closing)
-document.addEventListener('DOMContentLoaded', () => {
-    const box = document.getElementById('vn-dialogue');
-    if (box) {
-        box.addEventListener('click', () => {
-            if (_vnActive && !_vnAutoClose) {
-                clearInterval(_vnTyperTimer);
-                _vnDismiss();
-            } else if (_vnActive && _vnAutoClose) {
-                // Skip typing and dismiss immediately
-                clearInterval(_vnTyperTimer);
-                _vnDismiss();
+        // ── Bootstrap ────────────────────────────────────────────────────────────
+        window.addEventListener('DOMContentLoaded', async () => {
+            await Promise.all([loadCards(), loadBanners()]);
+            updateLobbyStats();
+            if (typeof renderVault === 'function') {
+                const vaultScreen = document.getElementById('screen-vault');
+                if (vaultScreen && !vaultScreen.classList.contains('hidden-screen')) renderVault();
             }
         });
-    }
-
-    // Show log panel when entering arena
-    const arenaBtn = document.getElementById('btn-arena');
-    // We handle this in showScreen override below
-});
-
-/* ── Mark arena-active on body so CSS log panel slides in ── */
-const _origShowScreen = typeof showScreen === 'function' ? showScreen : null;
-// We'll patch this after definition — see bottom of this file.
-
-/* ── Enemy Dialogue Lines ───────────────────────────────── */
-
-const ENEMY_LINES = {
-    deploy: [
-        "Let's see how you handle this one.",
-        "A new unit enters the field.",
-        "I've been saving this for the right moment.",
-        "This changes things.",
-        "Come forward.",
-        "Don't underestimate what I've just placed.",
-    ],
-    attackUnit: [
-        (atk, def) => `${atk} — eliminate ${def}.`,
-        (atk, def) => `Take down ${def}. Now.`,
-        (atk, def) => `${atk}, your target is ${def}.`,
-        (atk, def) => `${def} won't survive this.`,
-        (atk, def) => `I've calculated this perfectly. ${atk} moves.`,
-        (atk, def) => `${def} is a liability. Remove it.`,
-    ],
-    attackNexus: [
-        (atk) => `Strike directly. Hit their core.`,
-        (atk) => `${atk} — go for the nexus.`,
-        (atk) => `No units worth targeting. Nexus it is.`,
-        (atk) => `Every hit counts. ${atk}, move.`,
-        (atk) => `I'll chip away at your foundation.`,
-    ],
-    unitDied: [
-        (name) => `${name} — you served your purpose.`,
-        (name) => `${name} falls. A sacrifice I'd calculated.`,
-        (name) => `Unfortunate. But expected.`,
-        (name) => `${name} is gone. Adapt.`,
-    ],
-    playerUnitDied: [
-        (name) => `${name} has been eliminated. As expected.`,
-        (name) => `One less obstacle.`,
-        (name) => `Your ${name} couldn't withstand that.`,
-        (name) => `Good riddance to ${name}.`,
-    ],
-    nexusHit: [
-        `Your core weakens.`,
-        `Feel that.`,
-        `The damage accumulates.`,
-        `Your nexus can't take much more.`,
-    ],
-    turnStart: [
-        `My move.`,
-        `Let me think...`,
-        `The field is mine now.`,
-        `Analyzing your formation.`,
-        `I see several options.`,
-    ],
-    turnEnd: [
-        `Your turn, Commander.`,
-        `Make your play.`,
-        `Show me what you've got.`,
-        `I'll be watching.`,
-    ],
-};
-
-// Character-specific dialogue loaded from dialogue.json
-let CHAR_DIALOGUE = {};
-(async () => {
-    try {
-        const res = await fetch('dialogue.json');
-        if (res.ok) {
-            const data = await res.json();
-            CHAR_DIALOGUE = data.characters || {};
-            console.log(`Loaded dialogue.json (${Object.keys(CHAR_DIALOGUE).length} characters)`);
-        }
-    } catch(e) {
-        console.warn('dialogue.json not found, using default lines only.', e);
-    }
-})();
-
-function _enemyLine(category, speakerName, ...args) {
-    // Always use hardcoded ENEMY_LINES — never look up character-specific dialogue
-    const pool = ENEMY_LINES[category];
-    if (!pool || pool.length === 0) return "...";
-
-    const item = pool[Math.floor(Math.random() * pool.length)];
-
-    try {
-        if (typeof item === 'function') {
-            // Provide fallback strings if args are missing to prevent "undefined"
-            const safeArgs = args.map(arg => (arg !== undefined && arg !== null) ? arg : "Unit");
-            return item(...safeArgs);
-        }
-        return item;
-    } catch (e) {
-        console.error("Dialogue Error:", e);
-        return "Moving out.";
-    }
-}
-
-function _getEnemySpeaker() {
-    // If there's an enemy unit on the board, use its name
-    return 'Opponent';
-}
-
-function _getEnemyPortrait() {
-    const activeUnit = state.eBoard.find(u => u);
-    if (!activeUnit) return null;
-    // Try to get the card's image (it's an async function in the original code,
-    // so we cache the last known URL on the unit itself)
-    return activeUnit._cachedPortrait || null;
-}
-
-function _deathAnimateAllCards() {
-    state.board.forEach(unit, idx); {
-        if (unit.card.hp <= 0) {
-            animateCardDeath(defEl, () => { state.pBoard[targetIdx] = null; });
-        }
-    }
-}
-
-/* Cache portrait URLs when cards are rendered */
-const _origRenderBattleSlot = typeof renderBattleSlot === 'function' ? renderBattleSlot : null;
-
-
-/* ══════════════════════════════════════════════════════════
-   SECTION C — REPLACE endTurn WITH SEQUENCED VERSION
-   ══════════════════════════════════════════════════════════ */
-
-/**
- * Sequenced enemy turn:
- *   1. Banner + opening line
- *   2. Play a card (with dialogue)
- *   3. Each attack (with dialogue, visual, delay)
- *   4. Closing line + "YOUR TURN" banner
- *
- * Uses async/await + a small sleep() helper so each action
- * is staggered and the player can actually read the dialogue.
- */
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-async function endTurn() {
-
-    // ── Helper: read a card name safely, never returns undefined ──────────
-    function n(unit) {
-        if (!unit) return 'Unknown';
-        const card = unit.card ?? unit;
-        return (card && card.name) ? card.name : 'Unknown';
-    }
-
-    // ── 1. End-of-player-turn triggers ────────────────────────────────────
-    // onTurnEnd for every unit on both boards
-    [
-        { side: 'player', board: state.pBoard },
-        { side: 'enemy',  board: state.eBoard }
-    ].forEach(async group => {
-        group.board.forEach(async (unit, idx) => {
-            if (!unit) return;
-            await triggerCardEvent('onTurnEnd', unit, { side: group.side, slot: idx, board: group.board });
-        });
-    });
-
-    // whenNotAttack for player units that never attacked this turn
-    state.pBoard.forEach(async (unit, idx) => {
-        if (unit && !unit.status.exhausted) {
-            await triggerCardEvent('whenNotAttack', unit, { side: 'player', slot: idx, board: state.pBoard });
-        }
-    });
-
-    // ── 2. Reset enemy unit statuses so they can attack this turn ─────────
-    state.eBoard.forEach(u => {
-        if (!u) return;
-        u.status.exhausted  = false;
-        u.status.justPlayed = false;
-        if (u.status.invincible > 0) u.status.invincible--;
-        if (u.status.shield > 0) u.status.shield--;
-        if (u.status.reflect > 0) u.status.reflect--;
-        if (u.status.invisible > 0) u.status.invisible--;
-        if (u.status.silenced  > 0) u.status.silenced--;
-    });
-
-    updateBattleUI();
-
-    // ── 3. Opening banner + dialogue ──────────────────────────────────────
-    showTurnBanner('enemy');
-    await sleep(400);
-
-    const openingLine = _enemyLine('turnStart', 'Opponent');
-    await showDialogue('Opponent', openingLine, { autoClose: true });
-    await sleep(300);
-
-    // ── 4. AI plays a card ────────────────────────────────────────────────
-    const emptySlot = state.eBoard.findIndex(s => s === null);
-    if (emptySlot !== -1) {
-        const collectibleCards = ALL_CHARS.filter(c => !c.isKeyCard);
-        const c = collectibleCards[Math.floor(Math.random() * collectibleCards.length)];
-        const enemyUnit = {
-            card:   cloneCard(c),
-            status: { exhausted: true, justPlayed: true, silenced: 0, invincible: 0 }
-        };
-        state.eBoard[emptySlot] = enemyUnit;
-        await triggerCardEvent('onPlay', enemyUnit, { slot: emptySlot, side: 'enemy', board: state.eBoard });
-        updateBattleUI();
-        log(`${c.name.toUpperCase()} DEPLOYED TO ENEMY FIELD.`);
-
-        const deployLine = _enemyLine('deploy', c.name);
-        await showDialogue('Opponent', deployLine, { autoClose: true });
-        await sleep(400);
-    }
-
-    // ── 5. AI attack loop ─────────────────────────────────────────────────
-    // Snapshot the indices to attack with — we iterate by index so we always
-    // re-read state.eBoard[idx] fresh on every access instead of holding a
-    // stale reference captured before a unit could die.
-
-    for (let enemyIdx = 0; enemyIdx < state.eBoard.length; enemyIdx++) {
-
-        // Re-read from the board every time — never use a captured reference
-        const attacker = () => state.eBoard[enemyIdx];
-
-        // Skip if slot is empty, card is exhausted, silenced, or just played
-        const a = attacker();
-        if (!a || a.status.exhausted || a.status.silenced > 0 || a.status.justPlayed) continue;
-
-        // ── Single strike (called once, or twice for haste2) ──────────────
-        const performStrike = async () => {
-
-            // Re-read attacker at the start of every strike
-            const atk = attacker();
-            if (!atk || atk.card.hp <= 0) return; // attacker died before this strike
-
-            const atkName = n(atk);
-            const atkEl   = getSlotCard('enemy', enemyIdx);
-
-            // ── Determine target ──────────────────────────────────────────
-            // Guard check: find the first alive guard on the player board
-            const guardIdx = state.pBoard.findIndex(v => v && v.card && v.card.ability === 'guard' && v.card.hp > 0);
-
-            let targetType = 'nexus';
-            let targetIdx  = -1;
-
-            if (guardIdx !== -1) {
-                targetType = 'unit';
-                targetIdx  = guardIdx;
-            } else {
-                // Pick randomly between nexus and any alive player unit
-                const validTargets = [{ type: 'nexus' }];
-                state.pBoard.forEach((pUnit, idx) => {
-                    if (pUnit && pUnit.card && pUnit.card.hp > 0) {
-                        validTargets.push({ type: 'unit', idx });
-                    }
-                });
-                const chosen = validTargets[Math.floor(Math.random() * validTargets.length)];
-                targetType = chosen.type;
-                targetIdx  = chosen.idx ?? -1;
-            }
-
-            // ── Strike: nexus ─────────────────────────────────────────────
-            if (targetType === 'nexus') {
-                const line = _enemyLine('attackNexus', atkName);
-                await showDialogue('Opponent', line, { autoClose: true });
-                await sleep(300);
-
-                state.pHp -= atk.card.atk;
-                log(`${atkName} hits your nexus for ${atk.card.atk}.`);
-                spawnDamagePopup(document.getElementById('player-hp'), `-${atk.card.atk}`, 'dmg');
-                shakeArena(atk.card.atk >= 4);
-                updateBattleUI();
-
-                const nexusLine = _enemyLine('nexusHit', atkName);
-                await showDialogue('Opponent', nexusLine, { autoClose: true });
-
-            // ── Strike: unit ──────────────────────────────────────────────
-            } else {
-                // Re-read the target slot — it may have changed since targeting
-                const def = state.pBoard[targetIdx];
-                if (!def || !def.card || def.card.hp <= 0) return; // target already dead
-
-                const defName  = n(def);
-                const defEl    = getSlotCard('player', targetIdx);
-                const preDefHp = def.card.hp;
-
-                // Dialogue
-                const line = _enemyLine('attackUnit', 'Opponent', atkName, defName);
-                await showDialogue('Opponent', line, { autoClose: true });
-                await sleep(250);
-
-                // whenAttacked triggers
-                await triggerCardEvent('whenAttacked', def, { target: atk, slot: targetIdx, side: 'player', board: state.pBoard });
-                await triggerCardEvent('whenAttacked', atk, { target: def,  slot: enemyIdx,  side: 'enemy',  board: state.eBoard });
-
-                // ── Apply damage to defender ──────────────────────────────
-                if (def.status?.invincible > 0) {
-                    log(`INVINCIBLE: ${defName} blocked the hit!`);
-                    spawnDamagePopup(defEl, 'BLOCK', 'buff');
-                } else {
-                    def.card.hp -= atk.card.atk;
-                    spawnDamagePopup(defEl, `-${atk.card.atk}`, 'dmg');
-                    spawnImpactBurst(defEl, '#f87171');
-                    animateCard(defEl, 'animate-hit-flicker');
-                }
-
-                // ── Apply counter-damage to attacker ──────────────────────
-                // Re-read attacker in case a whenAttacked ability changed it
-                const atkAfter = attacker();
-                if (!atkAfter) return; // attacker was somehow removed by an ability
-
-                if (atkAfter.status?.invincible > 0) {
-                    log(`INVINCIBLE: ${atkName} takes no counter damage!`);
-                    spawnDamagePopup(atkEl, 'BLOCK', 'buff');
-                } else {
-                    atkAfter.card.hp -= def.card.atk;
-                    if (def.card.atk > 0) spawnDamagePopup(atkEl, `-${def.card.atk}`, 'dmg');
-                }
-
-                // ── Resolve defender death ────────────────────────────────
-                if (def.card.hp <= 0) {
-                    const deadDefName = n(def); // capture name before nulling
-                    log(`${deadDefName} is destroyed.`);
-                    await triggerCardEvent('onDeath', def, { slot: targetIdx, side: 'player', board: state.pBoard });
-
-                    // Berserk overflow into nexus
-                    if (atkAfter && atkAfter.card.ability === 'berserk') {
-                        const overflow = Math.max(0, atkAfter.card.atk - preDefHp);
-                        if (overflow > 0) {
-                            state.pHp -= overflow;
-                            shakeArena(true);
-                            log(`BERSERK OVERFLOW: ${overflow} DMG TO YOUR NEXUS.`);
-                        }
-                    }
-
-                    // Animate then null the slot
-                    if (def.card.hp <= 0) {
-                        const deathLine = _enemyLine('playerUnitDied', atkName, deadDefName);
-                        showDialogue('Opponent', deathLine, { autoClose: true }); // no await — continue
-                        animateCardDeath(defEl, () => { state.pBoard[targetIdx] = null; });
-                    }
-                }
-
-                // ── Resolve attacker death (from counter-damage) ──────────
-                const atkFinal = attacker();
-                if (atkFinal && atkFinal.card.hp <= 0) {
-                    const deadAtkName = n(atkFinal); // capture before nulling
-                    log(`${deadAtkName} is destroyed by counter-damage.`);
-                    await triggerCardEvent('onDeath', atkFinal, { slot: enemyIdx, side: 'enemy', board: state.eBoard });
-                    const deathLine = _enemyLine('unitDied', deadAtkName);
-                    showDialogue('Opponent', deathLine, { autoClose: true }); // no await — continue
-                    if (atkFinal.card.hp <= 0) {
-                        animateCardDeath(atkEl, () => { state.eBoard[enemyIdx] = null; });
-                    }
-                }
-            }
-        };
-
-        // First strike
-        await performStrike();
-        await sleep(500);
-
-        // Haste2: second strike only if attacker is still alive on the board
-        const atkCheck = attacker();
-        if (atkCheck && atkCheck.card.hp > 0 && atkCheck.card.ability === 'haste2') {
-            log(`HASTE2: ${n(atkCheck)} strikes again!`);
-            await performStrike();
-            await sleep(400);
-        }
-
-        // Status bookkeeping for this attacker — re-read from board
-        const atkDone = attacker();
-        if (atkDone) {
-            atkDone.status.exhausted = true;
-        }
-    }
-
-    // ── 6. Clear justPlayed on all remaining enemy units ──────────────────
-    state.eBoard.forEach(u => { if (u) u.status.justPlayed = false; });
-
-    // ── 7. Resource refresh ───────────────────────────────────────────────
-    if (state.maxMana < 10) state.maxMana++;
-    state.mana = state.maxMana;
-
-    // ── 8. Reset player unit statuses ─────────────────────────────────────
-    state.pBoard.forEach(u => {
-        if (!u) return;
-        if (u.status.invincible > 0) u.status.invincible--;
-        if (u.status.shield > 0) u.status.shield--;
-        if (u.status.reflect > 0) u.status.reflect--;
-        if (u.status.invisible > 0) u.status.invisible--;
-        u.status.exhausted  = false;
-        u.status.justPlayed = false;
-        if (u.status.silenced > 0) u.status.silenced--;
-    });
-
-    // ── 9. onTurnStart triggers for new turn ──────────────────────────────
-    [
-        { side: 'player', board: state.pBoard },
-        { side: 'enemy',  board: state.eBoard }
-    ].forEach(async group => {
-        group.board.forEach(async (unit, idx) => {
-            if (unit) await triggerCardEvent('onTurnStart', unit, { side: group.side, slot: idx, board: group.board });
-        });
-    });
-
-    // ── 10. Draw + closing dialogue ───────────────────────────────────────
-    draw();
-
-    await sleep(200);
-    const closingLine = _enemyLine('turnEnd', 'Opponent');
-    await showDialogue('Opponent', closingLine, { autoClose: true });
-
-    // ── 11. Final UI update and hand control back ─────────────────────────
-    await sleep(650);
-    updateBattleUI();
-    log("YOUR CYCLE.");
-    checkVictory();
-    showTurnBanner('player');
-}
-
-/* ── Patch showScreen to toggle arena-active on body ─────── */
-// This must come AFTER all other function definitions
-(function patchShowScreen() {
-    // Store original (already defined earlier in scripts.js)
-    if (typeof showScreen !== 'function') return;
-    const _orig = showScreen;
-    window.showScreen = function(id) {
-        _orig(id);
-        if (id === 'arena') {
-            document.body.classList.add('arena-active');
-        } else {
-            document.body.classList.remove('arena-active');
-            // Dismiss any open dialogue when leaving arena
-            const box = document.getElementById('vn-dialogue');
-            if (box) box.classList.remove('vn-visible');
-        }
-    };
-})();
-
-        window.onload = async () => {
-            await loadCards();
-            showScreen('vault');
-            // If you want to start directly in battle for testing, uncomment below:
-            // startBattle();
-        };
-/* ══════════════════════════════════════════════════════════════
-   ARENA & ABILITY ANIMATION ENHANCEMENTS v2
-   Paste at bottom of scripts.js (after window.onload block)
-   ══════════════════════════════════════════════════════════════ */
-
-// ── Ability ring flash around a card element ─────────────────
-function spawnAbilityRing(el, type = 'default') {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const ring = document.createElement('div');
-    ring.className = `ability-ring ${type}`;
-    ring.style.cssText = `
-        left:   ${rect.left   - 6}px;
-        top:    ${rect.top    - 6}px;
-        width:  ${rect.width  + 12}px;
-        height: ${rect.height + 12}px;
-    `;
-    document.body.appendChild(ring);
-    ring.addEventListener('animationend', () => ring.remove());
-}
-
-// ── Heal ripple rings ────────────────────────────────────────
-function spawnHealRipple(el) {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    for (let i = 0; i < 3; i++) {
-        const ripple = document.createElement('div');
-        ripple.className = 'heal-ripple';
-        const size = rect.width + 20;
-        ripple.style.cssText = `
-            left:   ${rect.left + rect.width / 2 - size / 2}px;
-            top:    ${rect.top  + rect.height / 2 - size / 2}px;
-            width:  ${size}px;
-            height: ${size}px;
-            animation-delay: ${i * 0.15}s;
-        `;
-        document.body.appendChild(ripple);
-        ripple.addEventListener('animationend', () => ripple.remove());
-    }
-}
-
-// ── Shield block burst (green square particles) ──────────────
-function spawnShieldBurst(el) {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top  + rect.height / 2;
-    for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2;
-        const dist  = 30 + Math.random() * 40;
-        const p = document.createElement('div');
-        p.className = 'shield-burst-particle';
-        p.style.cssText = `
-            left: ${cx - 4}px; top: ${cy - 4}px;
-            --px: ${Math.cos(angle) * dist}px;
-            --py: ${Math.sin(angle) * dist}px;
-            animation-duration: ${0.4 + Math.random() * 0.3}s;
-            background: ${i % 2 === 0 ? '#4ade80' : '#86efac'};
-        `;
-        document.body.appendChild(p);
-        p.addEventListener('animationend', () => p.remove());
-    }
-}
-
-// ── Fire particles (berserk / fire attacks) ──────────────────
-function spawnFireParticles(el, count = 12) {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const colors = ['#f87171', '#fb923c', '#fbbf24', '#ef4444'];
-    for (let i = 0; i < count; i++) {
-        const p = document.createElement('div');
-        p.className = 'fire-particle';
-        const x = rect.left + Math.random() * rect.width;
-        const y = rect.top  + rect.height * 0.6 + Math.random() * rect.height * 0.4;
-        p.style.cssText = `
-            left: ${x}px; top: ${y}px;
-            background: ${colors[Math.floor(Math.random() * colors.length)]};
-            animation-duration: ${0.4 + Math.random() * 0.4}s;
-            animation-delay: ${Math.random() * 0.2}s;
-            width: ${4 + Math.random() * 6}px;
-            height: ${8 + Math.random() * 10}px;
-            box-shadow: 0 0 6px currentColor;
-        `;
-        document.body.appendChild(p);
-        p.addEventListener('animationend', () => p.remove());
-    }
-}
-
-// ── Death shockwave ring ─────────────────────────────────────
-function spawnDeathShockwave(el) {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height) + 20;
-    const wave = document.createElement('div');
-    wave.className = 'death-shockwave';
-    wave.style.cssText = `
-        left:   ${rect.left + rect.width / 2 - size / 2}px;
-        top:    ${rect.top  + rect.height / 2 - size / 2}px;
-        width:  ${size}px;
-        height: ${size}px;
-    `;
-    document.body.appendChild(wave);
-    wave.addEventListener('animationend', () => wave.remove());
-}
-
-// ── Mana sparkle burst around mana element ───────────────────
-function spawnManaSparkles(el, count = 10) {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top  + rect.height / 2;
-    for (let i = 0; i < count; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist  = 20 + Math.random() * 35;
-        const sp = document.createElement('div');
-        sp.className = 'mana-sparkle';
-        sp.style.cssText = `
-            left: ${cx - 2.5}px; top: ${cy - 2.5}px;
-            --sx: ${Math.cos(angle) * dist}px;
-            --sy: ${Math.sin(angle) * dist}px;
-            --sr: ${-90 + Math.random() * 180}deg;
-            animation-duration: ${0.5 + Math.random() * 0.4}s;
-            animation-delay:    ${Math.random() * 0.1}s;
-            background: ${Math.random() > 0.5 ? '#818cf8' : '#a5b4fc'};
-        `;
-        document.body.appendChild(sp);
-        sp.addEventListener('animationend', () => sp.remove());
-    }
-}
-
-// ── Snipe crosshair overlay on target ────────────────────────
-function spawnSnipeCrosshair(el) {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const ch = document.createElement('div');
-    ch.className = 'snipe-crosshair';
-    ch.style.cssText = `
-        left: ${rect.left + rect.width / 2 - 25}px;
-        top:  ${rect.top  + rect.height / 2 - 25}px;
-    `;
-    document.body.appendChild(ch);
-    ch.addEventListener('animationend', () => ch.remove());
-}
-
-// ── Silence drape overlay ────────────────────────────────────
-function spawnSilenceOverlay(el) {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const ov = document.createElement('div');
-    ov.className = 'silence-overlay';
-    ov.style.cssText = `
-        left:   ${rect.left}px;
-        top:    ${rect.top}px;
-        width:  ${rect.width}px;
-        height: ${rect.height}px;
-    `;
-    ov.textContent = '🚫';
-    document.body.appendChild(ov);
-    ov.addEventListener('animationend', () => ov.remove());
-}
-
-// ── Drain orbs (steal / drain ATK effects) ───────────────────
-function spawnDrainOrbs(srcEl, dstEl, count = 6) {
-    if (!srcEl || !dstEl) return;
-    const srcRect = srcEl.getBoundingClientRect();
-    const dstRect = dstEl.getBoundingClientRect();
-    const sx = srcRect.left + srcRect.width  / 2;
-    const sy = srcRect.top  + srcRect.height / 2;
-    const dx = dstRect.left + dstRect.width  / 2;
-    const dy = dstRect.top  + dstRect.height / 2;
-
-    for (let i = 0; i < count; i++) {
-        const orb = document.createElement('div');
-        orb.className = 'drain-orb';
-        orb.style.cssText = `
-            left: ${sx - 5}px;
-            top:  ${sy - 5}px;
-            --dx: ${dx - sx + (Math.random() - 0.5) * 30}px;
-            --dy: ${dy - sy + (Math.random() - 0.5) * 30}px;
-            animation-delay:    ${i * 0.06}s;
-            animation-duration: ${0.45 + Math.random() * 0.2}s;
-        `;
-        document.body.appendChild(orb);
-        orb.addEventListener('animationend', () => orb.remove());
-    }
-}
-
-// ── Combo label popup ─────────────────────────────────────────
-let _comboCount = 0;
-let _comboTimer = null;
-function spawnComboLabel(el, label = null) {
-    if (!el) return;
-    _comboCount++;
-    clearTimeout(_comboTimer);
-    _comboTimer = setTimeout(() => { _comboCount = 0; }, 3000);
-
-    const rect = el.getBoundingClientRect();
-    const lbl = document.createElement('div');
-    lbl.className = 'combo-label';
-    lbl.textContent = label || (_comboCount > 1 ? `${_comboCount}x COMBO!` : 'CRITICAL!');
-    lbl.style.cssText = `
-        left: ${rect.left + rect.width / 2 - 80}px;
-        top:  ${rect.top  - 60}px;
-    `;
-    document.body.appendChild(lbl);
-    lbl.addEventListener('animationend', () => lbl.remove());
-}
-
-// ── Screen flash overlay for big hits ────────────────────────
-function flashScreen() {
-    const fl = document.createElement('div');
-    fl.className = 'screen-flash-overlay';
-    document.body.appendChild(fl);
-    fl.addEventListener('animationend', () => fl.remove());
-}
-
-// ── Vignette pulse ────────────────────────────────────────────
-function flashVignette(color = 'red') {
-    const vig = document.createElement('div');
-    vig.className = `battle-vignette ${color}`;
-    document.body.appendChild(vig);
-    vig.addEventListener('animationend', () => vig.remove());
-}
-
-// ── Lightning SVG arc between two elements ───────────────────
-function spawnLightningArc(srcEl, dstEl, color = '#818cf8') {
-    if (!srcEl || !dstEl) return;
-    const srcRect = srcEl.getBoundingClientRect();
-    const dstRect = dstEl.getBoundingClientRect();
-
-    const x1 = srcRect.left + srcRect.width  / 2;
-    const y1 = srcRect.top  + srcRect.height / 2;
-    const x2 = dstRect.left + dstRect.width  / 2;
-    const y2 = dstRect.top  + dstRect.height / 2;
-
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.className.baseVal = 'lightning-canvas';
-    svg.style.zIndex = '9996';
-
-    // Build jagged path
-    const segments = 8;
-    const points = [[x1, y1]];
-    for (let i = 1; i < segments; i++) {
-        const t  = i / segments;
-        const mx = x1 + (x2 - x1) * t + (Math.random() - 0.5) * 40;
-        const my = y1 + (y2 - y1) * t + (Math.random() - 0.5) * 40;
-        points.push([mx, my]);
-    }
-    points.push([x2, y2]);
-
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    path.setAttribute('points', points.map(p => p.join(',')).join(' '));
-    path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('opacity', '0.9');
-    path.style.filter = `drop-shadow(0 0 4px ${color})`;
-
-    svg.appendChild(path);
-    document.body.appendChild(svg);
-
-    // Flicker and remove
-    let flickers = 0;
-    const flicker = setInterval(() => {
-        path.setAttribute('opacity', Math.random() > 0.4 ? '0.9' : '0.2');
-        // Jitter the middle points
-        const pts = points.slice();
-        pts.slice(1, -1).forEach(p => {
-            p[0] += (Math.random() - 0.5) * 12;
-            p[1] += (Math.random() - 0.5) * 12;
-        });
-        path.setAttribute('points', pts.map(p => p.join(',')).join(' '));
-        if (++flickers > 5) {
-            clearInterval(flicker);
-            svg.remove();
-        }
-    }, 60);
-}
-
-// ── Spawn arena ambient idle motes on battle start ────────────
-function startArenaMotes() {
-    if (document.querySelectorAll('.arena-mote').length > 0) return;
-    const colors = ['#6366f1','#818cf8','#a855f7','#f0abfc','#38bdf8'];
-    for (let i = 0; i < 20; i++) {
-        const mote = document.createElement('div');
-        mote.className = 'arena-mote';
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        const dur = 4 + Math.random() * 8;
-        const left = Math.random() * 100;
-        const bottom = 10 + Math.random() * 80;
-        mote.style.cssText = `
-            left:   ${left}vw;
-            bottom: ${bottom}vh;
-            background: ${color};
-            box-shadow: 0 0 6px ${color};
-            --mx: ${(Math.random() - 0.5) * 60}px;
-            animation-duration: ${dur}s;
-            animation-delay: ${Math.random() * dur}s;
-            opacity: 0;
-        `;
-        document.body.appendChild(mote);
-        // Remove mote when leaving arena
-        mote.dataset.arenaFx = 'true';
-    }
-}
-
-function clearArenaMotes() {
-    document.querySelectorAll('[data-arena-fx]').forEach(el => el.remove());
-}
-
-// ── spawnRollPopup (improved) ─────────────────────────────────
-function spawnRollPopup(el, rolls, best, stat = 'atk') {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-
-    // Remove any existing popup on this card
-    const existing = document.querySelector('.roll-popup');
-    if (existing) existing.remove();
-
-    const popup = document.createElement('div');
-    popup.className = 'roll-popup';
-    popup.style.cssText = `
-        left: ${rect.left + rect.width / 2 - 55}px;
-        top:  ${rect.top  - 85}px;
-    `;
-
-    const diceHTML = rolls.map((r, i) => {
-        const isBest = r === best && rolls.filter(x => x === best).indexOf(r) === i;
-        return `<div class="roll-die ${isBest ? 'best' : ''}" style="animation-delay:${i * 0.07}s">${r}</div>`;
-    }).join('');
-
-    popup.innerHTML = `
-        <div class="roll-popup-dice">${diceHTML}</div>
-        <div class="roll-result">+${best} ${stat.toUpperCase()}</div>
-    `;
-
-    document.body.appendChild(popup);
-
-    // Animate out after 1.5s
-    setTimeout(() => {
-        popup.style.animation = 'roll-popup-out 0.35s ease-in forwards';
-        popup.addEventListener('animationend', () => popup.remove());
-    }, 1500);
-}
-
-// ── Check nexus HP and add danger class ───────────────────────
-function updateNexusDanger() {
-    const pHpEl = document.getElementById('player-hp');
-    const eHpEl = document.getElementById('enemy-hp');
-    if (pHpEl) {
-        const ph = parseInt(pHpEl.textContent);
-        if (ph <= 8) pHpEl.classList.add('nexus-danger');
-        else pHpEl.classList.remove('nexus-danger');
-    }
-    if (eHpEl) {
-        const eh = parseInt(eHpEl.textContent);
-        if (eh <= 8) eHpEl.classList.add('nexus-danger');
-        else eHpEl.classList.remove('nexus-danger');
-    }
-}
-
-// ── Patch animateCardDeath to add extra effects ───────────────
-const _origAnimateCardDeath = animateCardDeath;
-animateCardDeath = function(el, onNullCallback) {
-    if (el) {
-        spawnDeathShockwave(el);
-        spawnImpactBurst(el, '#c084fc'); // purple death particles
-        spawnImpactBurst(el, '#f87171');
-    }
-    _origAnimateCardDeath(el, onNullCallback);
-};
-
-// ── Patch spawnImpactBurst to add vignette on big hits ────────
-const _origSpawnImpact = spawnImpactBurst;
-spawnImpactBurst = function(el, color = '#f87171') {
-    _origSpawnImpact(el, color);
-    // Red vignette for damage bursts
-    if (color === '#f87171') {
-        flashVignette('red');
-    }
-};
-
-// ── Patch shakeArena to add screen flash on intense hits ──────
-const _origShakeArena = shakeArena;
-shakeArena = function(intense = false) {
-    _origShakeArena(intense);
-    if (intense) {
-        flashScreen();
-        flashVignette('red');
-    }
-};
-
-// ── Patch updateBattleUI to track nexus danger state ─────────
-const _origUpdateBattleUI = updateBattleUI;
-updateBattleUI = async function() {
-    await _origUpdateBattleUI();
-    updateNexusDanger();
-    updateCardStatusVisuals();
-};
-
-// ── Update card status visuals (invisible, berserk) ──────────
-function updateCardStatusVisuals() {
-    ['player', 'enemy'].forEach(side => {
-        const board = side === 'player' ? state.pBoard : state.eBoard;
-        board.forEach((unit, i) => {
-            const el = getSlotCard(side, i);
-            if (!el || !unit) return;
-            // Invisible state
-            if (unit.status?.invisible > 0) {
-                el.classList.add('is-invisible-state');
-            } else {
-                el.classList.remove('is-invisible-state');
-            }
-        });
-    });
-}
-
-// ── Patch applyCardEffect to add visual FX per ability type ──
-const _origApplyCardEffect = applyCardEffect;
-applyCardEffect = async function(effect, unit, context = {}) {
-    const result = await _origApplyCardEffect(effect, unit, context);
-
-    const side = context.side;
-    const slot = context.slot;
-    const cardEl = (side !== undefined && slot !== undefined) ? getSlotCard(side, slot) : null;
-
-    switch (effect.type) {
-        case 'healSelf':
-        case 'healNexus':
-        case 'healAllies': {
-            if (cardEl) {
-                spawnHealRipple(cardEl);
-                spawnAbilityRing(cardEl, 'heal');
-            }
-            const hpEl = effect.type === 'healNexus'
-                ? document.getElementById('player-hp')
-                : null;
-            if (hpEl) spawnHealRipple(hpEl);
-            break;
-        }
-        case 'attackUpSelf':
-        case 'hpUpSelf': {
-            if (cardEl) spawnAbilityRing(cardEl, 'buff');
-            break;
-        }
-        case 'dealDamageAllEnemies': {
-            const oppSide = side === 'player' ? 'enemy' : 'player';
-            const oppBoard = context.opponentBoard || (side === 'player' ? state.eBoard : state.pBoard);
-            oppBoard.forEach((u, i) => {
-                if (!u) return;
-                const targetEl = getSlotCard(oppSide, i);
-                if (targetEl) {
-                    spawnImpactBurst(targetEl, '#f87171');
-                    spawnAbilityRing(targetEl, 'dmg');
-                }
-            });
-            if (cardEl) spawnFireParticles(cardEl, 8);
-            break;
-        }
-        case 'curseAllEnemies': {
-            const oppSide2 = side === 'player' ? 'enemy' : 'player';
-            const oppBoard2 = context.opponentBoard || (side === 'player' ? state.eBoard : state.pBoard);
-            oppBoard2.forEach((u, i) => {
-                if (!u) return;
-                const targetEl = getSlotCard(oppSide2, i);
-                if (targetEl) spawnAbilityRing(targetEl, 'curse');
-            });
-            break;
-        }
-        case 'silenceTarget':
-        case 'silenceRandomEnemy': {
-            const victimSide = context.side === 'player' ? 'enemy' : 'player';
-            const victimIdx  = context.targetIdx;
-            if (victimIdx !== undefined) {
-                const victimEl = getSlotCard(victimSide, victimIdx);
-                if (victimEl) {
-                    spawnSilenceOverlay(victimEl);
-                    spawnAbilityRing(victimEl, 'silence');
-                }
-            }
-            break;
-        }
-        case 'stealAttack':
-        case 'stealAttackFromAll': {
-            if (cardEl && context.target) {
-                const targetBoard  = side === 'player' ? state.eBoard : state.pBoard;
-                const targetSide   = side === 'player' ? 'enemy' : 'player';
-                const targetIdx    = targetBoard.indexOf(context.target);
-                if (targetIdx !== -1) {
-                    const targetEl = getSlotCard(targetSide, targetIdx);
-                    spawnDrainOrbs(targetEl, cardEl, 8);
-                }
-            }
-            break;
-        }
-        case 'gainMana': {
-            const manaEl = document.getElementById('mana-text');
-            if (manaEl) spawnManaSparkles(manaEl, 12);
-            break;
-        }
-        case 'snipeDamage': {
-            if (context.target) {
-                const snipeSide = side === 'player' ? 'enemy' : 'player';
-                const snipeBoard = snipeSide === 'enemy' ? state.eBoard : state.pBoard;
-                const snipeIdx   = snipeBoard.indexOf(context.target);
-                if (snipeIdx !== -1) {
-                    const snipeEl = getSlotCard(snipeSide, snipeIdx);
-                    spawnSnipeCrosshair(snipeEl);
-                    await delay(200);
-                    spawnImpactBurst(snipeEl, '#f87171');
-                }
-            }
-            break;
-        }
-        case 'damageRandomEnemy': {
-            const rndSide = side === 'player' ? 'enemy' : 'player';
-            const rndBoard = rndSide === 'enemy' ? state.eBoard : state.pBoard;
-            if (context.target) {
-                const rndIdx = rndBoard.indexOf(context.target);
-                if (rndIdx !== -1) {
-                    const rndEl = getSlotCard(rndSide, rndIdx);
-                    spawnLightningArc(cardEl, rndEl, '#818cf8');
-                    spawnAbilityRing(rndEl, 'dmg');
-                }
-            }
-            break;
-        }
-        case 'applyShield': {
-            if (cardEl) {
-                spawnShieldBurst(cardEl);
-                spawnAbilityRing(cardEl, 'heal');
-            }
-            break;
-        }
-        case 'applyReflect': {
-            if (cardEl) {
-                spawnAbilityRing(cardEl, 'buff');
-                animateCard(cardEl, 'animate-reflect');
-            }
-            break;
-        }
-        case 'nexusHpToPowerUp': {
-            if (cardEl) spawnFireParticles(cardEl, 10);
-            break;
-        }
-        case 'drawCard': {
-            spawnManaSparkles(document.getElementById('player-hp') || document.body, 6);
-            break;
-        }
-    }
-
-    return result;
-};
-
-// ── Haste double-strike visual ────────────────────────────────
-const _origHandleStrike = handleStrike;
-handleStrike = async function(pIdx, eIdx) {
-    return _origHandleStrike(pIdx, eIdx);
-};
-
-// ── Hook into arena show/hide for ambient effects ─────────────
-const _origShowScreenPatch = window.showScreen;
-window.showScreen = function(id) {
-    _origShowScreenPatch(id);
-    if (id === 'arena') {
-        setTimeout(startArenaMotes, 500);
-    } else {
-        clearArenaMotes();
-    }
-};
-
-// ── Enhanced handleStrike: adds haste glow ────────────────────
-// Intercept via a post-drop check so we don't break the chain
-document.addEventListener('drop', function(e) {
-    // After a drop, briefly check if the attacker has haste and highlight
-    setTimeout(() => {
-        state.pBoard.forEach((u, i) => {
-            if (!u) return;
-            const el = getSlotCard('player', i);
-            if (!el) return;
-            if (u.card.ability === 'haste2' && !u.status.exhausted) {
-                el.classList.add('animate-haste');
-                setTimeout(() => el.classList.remove('animate-haste'), 500);
-            }
-        });
-    }, 50);
-});
-
-console.log('[FX v2] Arena & ability animations loaded.');
