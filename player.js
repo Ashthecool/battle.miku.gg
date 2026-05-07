@@ -166,12 +166,8 @@
     }
 
     function closeDailyReward() {
-        const today = new Date().toISOString().slice(0, 10);
-        if (playerData.lastLoginDate !== today) {
-            playerData.lastLoginDate = today;
-            playerData.points += DAILY_BONUS;
-            savePlayerData();
-        }
+        // Guard removed: checkDailyReward already saved the date before calling showDailyReward.
+        // Re-checking here causes double-award if player closes the overlay quickly.
         document.getElementById('daily-reward-overlay').classList.remove('visible');
     }
 

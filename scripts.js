@@ -14,18 +14,15 @@ lucide.createIcons();
             return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
         };
 
-        // Builds the ordered list of candidate URLs to try for a card image:
-        // 1. name-with-hyphens.png  2. name_with_underscores.png
-        // 3. name-with-hyphens.jpg  4. name_with_underscores.jpg
-        function getCardImageCandidates(name) {
-            const hyphen    = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
-            const underscore = name.toLowerCase().replace(/ /g, '_').replace(/'/g, '');
-            return [
-                supabaseStorageUrl(`${hyphen}.png`),
-                supabaseStorageUrl(`${underscore}.png`),
-                supabaseStorageUrl(`${hyphen}.jpg`),
-                supabaseStorageUrl(`${underscore}.jpg`),
-            ];
+        // Returns the .png URL directly — no async HEAD check needed.
+        // img tags use onerror to fall back to .jpg if .png is missing.
+        function getCardImage(name) {
+            // .replace(/\//g, '-') replaces all slashes with dashes
+            const base = name.toLowerCase()
+                            .replace(/\//g, '-') 
+                            .replace(/ /g, '-')
+                            .replace(/'/g, '');
+            return supabaseStorageUrl(`${base}.png`);
         }
 
         // Primary URL (first candidate — hyphen .png)
@@ -35,7 +32,10 @@ lucide.createIcons();
 
         // Legacy fallback — hyphen .jpg (kept for any direct callers)
         function getCardImageJpg(name) {
-            const base = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
+            const base = name.toLowerCase()
+                            .replace(/\//g, '-')
+                            .replace(/ /g, '-')
+                            .replace(/'/g, '');
             return supabaseStorageUrl(`${base}.jpg`);
         }
 
@@ -218,18 +218,25 @@ lucide.createIcons();
                     }
                     break;
                 }
-                case 'splashAdjacent':
-                    [context.targetIdx - 1, context.targetIdx + 1].forEach(adj => {
-                        if (context.board && context.board[adj]) {
-                            context.board[adj].card.hp -= amount;
-                            if (context.board[adj].card.hp <= 0) {
-                                log(`${context.board[adj].card.name} TAKES SPLASH AND DIES`);
-                                context.board[adj] = null;
+                case 'splashAdjacent': {
+                    const adjIndices = [context.targetIdx - 1, context.targetIdx + 1];
+                    // Use the opposing board (where the target is) for adjacent damage
+                    const splashBoard = getOpposingBoard(context);
+                    const splashBoardSide = getBoardSide(splashBoard);
+                    for (const adj of adjIndices) {
+                        if (splashBoard && splashBoard[adj]) {
+                            splashBoard[adj].card.hp -= amount;
+                            if (splashBoard[adj].card.hp <= 0) {
+                                log(`${splashBoard[adj].card.name} TAKES SPLASH AND DIES`);
+                                await resolveBoardUnitDeath(splashBoard[adj], splashBoard, adj);
                             } else {
-                                log(`${context.board[adj].card.name} TAKES SPLASH`);
+                                log(`${splashBoard[adj].card.name} TAKES SPLASH`);
+                                updateCardStats(splashBoardSide, adj);
                             }
                         }
-                    });
+                    }
+                    break;
+                }
                     animateCard(document.getElementById(context.side === 'enemy' ? 'player-hp' : 'enemy-hp'), 'animate-ability');
                     break;
                 case 'silenceTarget': {
@@ -1273,6 +1280,53 @@ lucide.createIcons();
                     if (context.slot !== undefined) {
                         const mchanEl = getSlotCard(context.side, context.slot);
                         if (mchanEl) mchanEl.classList.remove('mchan-active');
+                    }
+                    break;
+                }
+
+                case 'hpUpAllAllies': {
+                    // Increase Max HP for every ally on the acting unit's board (Lucia Atkins — Scholar's Ward)
+                    const hpAllies = context.board || (context.side === 'enemy' ? state.eBoard : state.pBoard);
+                    hpAllies.forEach((u, idx) => {
+                        if (u && u.card) {
+                            u.card.maxHp = (u.card.maxHp ?? u.card.hp) + amount;
+                            u.card.hp += amount;
+                            log(`${u.card.name.toUpperCase()} GAINS +${amount} MAX HP FROM LUCIA'S SCHOLAR'S WARD!`);
+                            const allyEl = getSlotCard(context.side, idx);
+                            if (allyEl) animateCard(allyEl, 'animate-heal');
+                            updateCardStats(context.side, idx);
+                        }
+                    });
+                    break;
+                }
+
+                case 'scholarWard': {
+                    // Lucia Atkins — Annotated Memory:
+                    // If 2+ allies on board, reduce the highest-ATK enemy's attack by 1 (amount times).
+                    const wardAllies = context.board || (context.side === 'enemy' ? state.eBoard : state.pBoard);
+                    const wardAllyCount = wardAllies.filter(u => u && u.card).length;
+                    if (wardAllyCount < 2) break;
+
+                    const wardEnemyBoard = getOpposingBoard(context) || [];
+                    const wardEnemySide = getBoardSide(wardEnemyBoard);
+
+                    const times = Math.max(1, amount); // amount = 1 normally, 2 if Chris/Hunter in play
+                    for (let t = 0; t < times; t++) {
+                        const candidates = wardEnemyBoard
+                            .map((u, i) => u && u.card ? { u, i } : null)
+                            .filter(Boolean);
+                        if (candidates.length === 0) break;
+
+                        const highest = candidates.reduce((best, cur) =>
+                            cur.u.card.atk > best.u.card.atk ? cur : best
+                        );
+                        if (highest.u.card.atk > 0) {
+                            highest.u.card.atk -= 1;
+                            log(`LUCIA ATKINS — ANNOTATED MEMORY: ${highest.u.card.name.toUpperCase()} LOSES 1 ATK! (NOW ${highest.u.card.atk} ATK)`);
+                            const enemyEl = getSlotCard(wardEnemySide, highest.i);
+                            if (enemyEl) animateCard(enemyEl, 'animate-ability');
+                            updateCardStats(wardEnemySide, highest.i);
+                        }
                     }
                     break;
                 }
