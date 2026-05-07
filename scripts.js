@@ -40,15 +40,18 @@ lucide.createIcons();
         }
 
         // Called by onerror on card <img> elements to walk the candidate list.
-        // Usage in HTML: onerror="cardImageFallback(this, 'Card Name')"
+        // Uses a data attribute to track position so DOM URL normalization
+        // doesn't break indexOf comparisons.
         window.cardImageFallback = function(img, name) {
-            const candidates = getCardImageCandidates(name);
-            const current = img.src;
-            const idx = candidates.indexOf(current);
-            if (idx !== -1 && idx + 1 < candidates.length) {
-                img.src = candidates[idx + 1];
+            // Deduplicate candidates (single-word names produce identical hyphen/underscore URLs)
+            const seen = new Set();
+            const candidates = getCardImageCandidates(name).filter(u => seen.has(u) ? false : seen.add(u));
+            const next = parseInt(img.dataset.imgFallbackIdx || '0', 10) + 1;
+            if (next < candidates.length) {
+                img.dataset.imgFallbackIdx = next;
+                img.src = candidates[next];
             }
-            // If we've exhausted all candidates, leave as-is (broken image)
+            // Exhausted all candidates — leave as broken image
         };
 
         function cloneCard(card) {

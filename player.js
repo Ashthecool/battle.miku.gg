@@ -255,12 +255,11 @@
 
         // Load card image
         const cardDef = ALL_CHARS.find(x => x.name === c.name);
-        const imgPath = cardDef ? getCardImage(c.name) : null;
-        const imgFallback = cardDef ? getCardImageJpg(c.name) : null;
+        const imgPath = cardDef ? (cardDef.image || getCardImage(c.name)) : null;
         const img = document.getElementById('reveal-card-img');
         if (imgPath && img) {
             img.src = imgPath;
-            img.onerror = () => { if (img.src !== imgFallback) img.src = imgFallback; };
+            img.onerror = () => cardImageFallback(img, c.name);
         }
 
         // Setup next button
@@ -297,13 +296,12 @@
 
             // Card image
             const cardDef = ALL_CHARS.find(x => x.name === c.name);
-            const imgPath = cardDef ? getCardImage(c.name) : null;
-            const imgFallback = cardDef ? getCardImageJpg(c.name) : null;
+            const imgPath = cardDef ? (cardDef.image || getCardImage(c.name)) : null;
             if (imgPath) {
                 const img = document.createElement('img');
                 img.src = imgPath;
                 img.className = 'reveal-card';
-                img.onerror = () => { if (img.src !== imgFallback) img.src = imgFallback; };
+                img.onerror = () => cardImageFallback(img, c.name);
                 wrap.appendChild(img);
             } else {
                 const placeholder = document.createElement('div');
@@ -379,9 +377,8 @@
                 slotEl.innerHTML = `<div class="remove-x">✕</div><div style="font-size:9px;font-weight:800;text-align:center;padding:4px;color:rgba(255,255,255,0.8);">${deck.cards[i]}</div>`;
                 slotEl.onclick = () => { deck.cards.splice(i, 1); savePlayerData(); renderDeckBuilder(); };
                 if (cardDef) {
-                    const src = getCardImage(cardDef.name);
-                    const fb  = getCardImageJpg(cardDef.name);
-                    slotEl.innerHTML = `<div class="remove-x">✕</div><img src="${src}" onerror="if(this.src!=='${fb}')this.src='${fb}'" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+                    const src = cardDef.image || getCardImage(cardDef.name);
+                    slotEl.innerHTML = `<div class="remove-x">✕</div><img src="${src}" onerror="cardImageFallback(this,'${cardDef.name.replace(/'/g, "\\'")}')" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
                 }
             } else {
                 slotEl.innerHTML = `<span style="font-size:20px;opacity:0.2;">+</span>`;
@@ -435,10 +432,8 @@
 
             const _imgEl = row.querySelector('img');
             if (_imgEl) {
-                const _src = getCardImage(card.name);
-                const _fb  = getCardImageJpg(card.name);
-                _imgEl.src = _src;
-                _imgEl.onerror = () => { if (_imgEl.src !== _fb) _imgEl.src = _fb; };
+                _imgEl.src = card.image || getCardImage(card.name);
+                _imgEl.onerror = () => cardImageFallback(_imgEl, card.name);
                 _imgEl.style.display = '';
             }
 
@@ -524,10 +519,8 @@
 
             const _ci = wrap.querySelector('img');
             if (_ci) {
-                const _src = getCardImage(card.name);
-                const _fb  = getCardImageJpg(card.name);
-                _ci.src = _src;
-                _ci.onerror = () => { if (_ci.src !== _fb) _ci.src = _fb; };
+                _ci.src = card.image || getCardImage(card.name);
+                _ci.onerror = () => cardImageFallback(_ci, card.name);
             }
 
             grid.appendChild(wrap);
@@ -575,12 +568,11 @@
             `;
         }
 
-        const imgSrc = getCardImage(cardName);
-        const imgFb = getCardImageJpg(cardName);
+        const imgSrc = card.image || getCardImage(cardName);
 
         const content = `
             <div class="card-details-image-section">
-                <img src="${imgSrc}" onerror="if(this.src!=='${imgFb}')this.src='${imgFb}'" alt="${cardName}" class="card-details-image" style="border-color:${borderColor}80;">
+                <img src="${imgSrc}" onerror="cardImageFallback(this,'${cardName.replace(/'/g, "\\'")}')" alt="${cardName}" class="card-details-image" style="border-color:${borderColor}80;">
                 <div style="font-size:12px;color:rgba(255,255,255,0.6);text-align:center;">
                     Owned: <span style="color:${borderColor};font-weight:900;font-size:14px;">×${count}</span>
                 </div>
@@ -1490,7 +1482,9 @@
                         return;
                     }
 
-                    const lvIcon = lvDone ? '✅' : `<img src="${getCardImage(lv.opponent.name)}" onerror="this.src='${getCardImageJpg(lv.opponent.name)}'" alt="${lv.opponent.name}" style="width:100%;height:100%;object-fit:cover; border-radius:50%;border:2px solid rgba(255,255,255,0.2);">`;
+                    const lvOpponentDef = ALL_CHARS && ALL_CHARS.find(x => x.name === lv.opponent.name);
+                    const lvImgSrc = lvOpponentDef ? (lvOpponentDef.image || getCardImage(lv.opponent.name)) : getCardImage(lv.opponent.name);
+                    const lvIcon = lvDone ? '✅' : `<img src="${lvImgSrc}" onerror="cardImageFallback(this,'${lv.opponent.name.replace(/'/g, "\\'")}')" alt="${lv.opponent.name}" style="width:100%;height:100%;object-fit:cover; border-radius:50%;border:2px solid rgba(255,255,255,0.2);">`;
                     const lvCls  = 'story-pin story-pin-level' + (lvDone ? ' done' : '');
                     const lvClick = `onclick="showLevelModal('${ch.id}','${lv.id}')"`;
 
@@ -1548,8 +1542,8 @@
         const chNum = STORY_CHAPTERS.indexOf(ch) + 1;
         const lvNum = ch.levels.indexOf(lv) + 1;
 
-        const imgSrc  = getCardImage(lv.opponent.name);
-        const imgFb   = getCardImageJpg(lv.opponent.name);
+        const opponentDef = ALL_CHARS && ALL_CHARS.find(x => x.name === lv.opponent.name);
+        const imgSrc  = opponentDef ? (opponentDef.image || getCardImage(lv.opponent.name)) : getCardImage(lv.opponent.name);
 
         const diffStars = Array.from({ length: 6 }, (_, i) =>
             `<span style="color:${i < (lv.opponent.difficulty || 1) ? '#f59e0b' : 'rgba(255,255,255,0.12)'}; font-size:13px;">★</span>`
@@ -1576,7 +1570,7 @@
                 <div class="slm-hero">
                     <div class="slm-portrait-ring">
                         <img src="${imgSrc}"
-                             onerror="if(this.src!=='${imgFb}')this.src='${imgFb}'"
+                             onerror="cardImageFallback(this,'${lv.opponent.name.replace(/'/g, "\\'")}')"
                              alt="${lv.opponent.name}"
                              class="slm-portrait-img">
                     </div>
