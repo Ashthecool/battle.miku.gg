@@ -14,17 +14,42 @@ lucide.createIcons();
             return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
         };
 
-        // Returns the .png URL directly — no async HEAD check needed.
-        // img tags use onerror to fall back to .jpg if .png is missing.
-        function getCardImage(name) {
-            const base = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
-            return supabaseStorageUrl(`${base}.png`);
+        // Builds the ordered list of candidate URLs to try for a card image:
+        // 1. name-with-hyphens.png  2. name_with_underscores.png
+        // 3. name-with-hyphens.jpg  4. name_with_underscores.jpg
+        function getCardImageCandidates(name) {
+            const hyphen    = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
+            const underscore = name.toLowerCase().replace(/ /g, '_').replace(/'/g, '');
+            return [
+                supabaseStorageUrl(`${hyphen}.png`),
+                supabaseStorageUrl(`${underscore}.png`),
+                supabaseStorageUrl(`${hyphen}.jpg`),
+                supabaseStorageUrl(`${underscore}.jpg`),
+            ];
         }
 
+        // Primary URL (first candidate — hyphen .png)
+        function getCardImage(name) {
+            return getCardImageCandidates(name)[0];
+        }
+
+        // Legacy fallback — hyphen .jpg (kept for any direct callers)
         function getCardImageJpg(name) {
             const base = name.toLowerCase().replace(/ /g, '-').replace(/'/g, '');
             return supabaseStorageUrl(`${base}.jpg`);
         }
+
+        // Called by onerror on card <img> elements to walk the candidate list.
+        // Usage in HTML: onerror="cardImageFallback(this, 'Card Name')"
+        window.cardImageFallback = function(img, name) {
+            const candidates = getCardImageCandidates(name);
+            const current = img.src;
+            const idx = candidates.indexOf(current);
+            if (idx !== -1 && idx + 1 < candidates.length) {
+                img.src = candidates[idx + 1];
+            }
+            // If we've exhausted all candidates, leave as-is (broken image)
+        };
 
         function cloneCard(card) {
             return { ...card, image: card.image, imageFallback: card.imageFallback, maxHp: card.maxHp ?? card.hp };
@@ -1646,7 +1671,7 @@ lucide.createIcons();
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
                         const imgEl = el.querySelector('img');
-                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { cardImageFallback(imgEl, unit.card.name); }; }
                         el.classList.add('kirsti-evolve-kitsune');
                         el.querySelector('.card-name')?.remove();
                         spawnAbilityRing(el, 'heal');
@@ -1683,7 +1708,7 @@ lucide.createIcons();
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
                         const imgEl = el.querySelector('img');
-                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { cardImageFallback(imgEl, unit.card.name); }; }
                         el.classList.add('kirsti-evolve-queen');
                         spawnAbilityRing(el, 'buff');
                         animateCard(el, 'animate-legendary-transform');
@@ -1719,7 +1744,7 @@ lucide.createIcons();
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
                         const imgEl = el.querySelector('img');
-                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { cardImageFallback(imgEl, unit.card.name); }; }
                         el.classList.add('kirsti-evolve-hyena');
                         spawnAbilityRing(el, 'buff');
                         animateCard(el, 'animate-legendary-transform');
@@ -1754,7 +1779,7 @@ lucide.createIcons();
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
                         const imgEl = el.querySelector('img');
-                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { cardImageFallback(imgEl, unit.card.name); }; }
                         el.classList.add('kirsti-evolve-arachnea');
                         spawnAbilityRing(el, 'dmg');
                         animateCard(el, 'animate-legendary-transform');
@@ -1791,7 +1816,7 @@ lucide.createIcons();
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
                         const imgEl = el.querySelector('img');
-                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { cardImageFallback(imgEl, unit.card.name); }; }
                         el.classList.add('kirsti-evolve-priestress');
                         el.classList.add('is-invincible');
                         spawnAbilityRing(el, 'silence');
@@ -1829,7 +1854,7 @@ lucide.createIcons();
                     const el = getSlotCard(context.side, context.slot);
                     if (el) {
                         const imgEl = el.querySelector('img');
-                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { imgEl.src = getCardImageJpg(unit.card.name); }; }
+                        if (imgEl) { imgEl.src = unit.card.image; imgEl.onerror = () => { cardImageFallback(imgEl, unit.card.name); }; }
                         el.classList.add('kirsti-evolve-witch');
                         spawnAbilityRing(el, 'buff');
                         animateCard(el, 'animate-legendary-transform');
@@ -2031,8 +2056,8 @@ lucide.createIcons();
                 ALL_CHARS = data.map(card => ({
                     ...card,
                     abilities: card.abilities || {},
-                    image: getCardImage(card.name),
-                    imageFallback: getCardImageJpg(card.name)
+                    image: card.image || getCardImage(card.name),
+                    imageFallback: card.imageFallback || getCardImageJpg(card.name)
                 }));
                 // Patch M-chan abilities: onPlay is handled by legendary passive,
                 // onDeath must fire restoreMchanSlots before her slot is nulled.
@@ -2654,7 +2679,7 @@ lucide.createIcons();
                         <div class="rarity-badge">${card.rarity}</div>
                         ${card.rank ? `<div class="rank-badge rank-${card.rank.toUpperCase()}">${card.rank.toUpperCase()}</div>` : ''}
                         <div class="card-title-container flex-1 flex flex-col items-center pointer-events-none">
-                            <img src="${imageSrc}" onerror="if(this.src!=='${imageFallback.replace(/'/g, '\\\'')}')this.src='${imageFallback.replace(/'/g, '\\\'')}'" crossorigin="anonymous" class="w-8 h-8 mb-1 object-contain" alt="${card.name}">
+                            <img src="${imageSrc}" onerror="cardImageFallback(this,'${card.name.replace(/'/g, "\\'")}')" crossorigin="anonymous" class="w-8 h-8 mb-1 object-contain" alt="${card.name}">
                             <div id="card-title" class="text-[9px] font-black leading-tight uppercase px-1">${card.name}</div>
                         </div>
                         <div class="description-box">${descriptionHTML}</div>
@@ -3630,7 +3655,7 @@ lucide.createIcons();
                         <div class="rarity-badge">${card.rarity || ''}</div>
                         ${card.rank ? `<div class="rank-badge rank-${card.rank.toUpperCase()}">${card.rank.toUpperCase()}</div>` : ''}
                         <div class="card-title-container flex-1 flex flex-col items-center pointer-events-none">
-                            <img src="${card.image}" onerror="if(this.src!=='${safeFB}')this.src='${safeFB}'" crossorigin="anonymous" alt="${card.name}">
+                            <img src="${card.image}" onerror="cardImageFallback(this,'${card.name.replace(/'/g, "\\'")}')" crossorigin="anonymous" alt="${card.name}">
                             <div class="text-[9px] font-black leading-tight uppercase px-1 text-center">${card.name}</div>
                         </div>
                         <div class="description-box" style="font-size:7px;padding:4px 6px;overflow:hidden;max-height:60px;opacity:0.8">
