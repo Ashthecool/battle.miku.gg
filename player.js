@@ -213,7 +213,6 @@
         if (playerData.packHistory.length > 30) playerData.packHistory.pop();
 
         savePlayerData();
-        renderPackShop();
         showPackReveal(pulled, pack);
     }
 
@@ -223,13 +222,10 @@
     async function showPackReveal(cards, pack) {
         const overlay = document.getElementById('pack-reveal-overlay');
         const container = document.getElementById('pack-reveal-cards');
+        if (!overlay || !container) return;
+        _revealState = { cards: cards, currentIndex: 0, revealedAll: false, pack: pack };
         container.innerHTML = '';
         overlay.classList.add('visible');
-
-        // Initialize reveal state
-        _revealState = { cards: cards, currentIndex: 0, revealedAll: false, pack: pack };
-
-        // Show first card in single reveal mode
         showSingleRevealCard(0);
     }
 
@@ -276,6 +272,7 @@
     }
 
     function showAllRevealedCards() {
+        if (_revealState.revealedAll) return;  // guard against double-call
         const container = document.getElementById('pack-reveal-cards');
         container.innerHTML = '';
         _revealState.revealedAll = true;
@@ -326,9 +323,7 @@
 
     function closePackReveal() {
         document.getElementById('pack-reveal-overlay').classList.remove('visible');
-        if (document.getElementById('screen-packshop') && !document.getElementById('screen-packshop').classList.contains('hidden-screen')) {
-            renderPackShop();
-        }
+        renderPackShop();
     }
 
     /* ─── Deck builder ─────────────────────────────────────── */

@@ -14,6 +14,16 @@ lucide.createIcons();
             return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${path}`;
         };
 
+        // ── Battle log function ──────────────────────────────────────────────────────
+        function log(text) {
+            const entry = document.createElement('div');
+            entry.textContent = text;
+            entry.classList.add('battle-log-entry');
+            const logEl = document.getElementById('battle-log-entries');
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
         // Builds the ordered list of candidate URLs to try for a card image:
         // 1. name-with-hyphens.png  2. name_with_underscores.png
         // 3. name-with-hyphens.jpg  4. name_with_underscores.jpg
@@ -2172,6 +2182,7 @@ lucide.createIcons();
             if(id === 'lobby') updateLobbyStats();
             // Arena now requires user confirmation via modal - removed auto-start
         }
+        window.showScreen = showScreen;
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -2928,6 +2939,24 @@ lucide.createIcons();
             atkEl.textContent = unit.card.atk;
             hpEl.textContent  = unit.card.hp;
             return true;
+        }
+
+        // Arrange hand cards in a fan layout
+        function applyHandFan() {
+            const handEl = document.getElementById('player-hand');
+            const cards = Array.from(handEl.children);
+            const total = cards.length;
+            if (total === 0) return;
+
+            const maxAngle = 20; // max fan angle in degrees
+            const angleStep = total > 1 ? maxAngle / (total - 1) : 0;
+            const startAngle = -maxAngle / 2;
+
+            cards.forEach((card, i) => {
+                const angle = startAngle + i * angleStep;
+                card.style.transform = `rotate(${angle}deg)`;
+                card.style.transformOrigin = 'bottom center';
+            });
         }
 
         async function updateBattleUI() {
@@ -3909,6 +3938,7 @@ lucide.createIcons();
         window.addEventListener('DOMContentLoaded', async () => {
             await Promise.all([loadCards(), loadBanners()]);
             updateLobbyStats();
+            showScreen('story'); // Default to story mode for visual novel experience
             if (typeof renderVault === 'function') {
                 const vaultScreen = document.getElementById('screen-vault');
                 if (vaultScreen && !vaultScreen.classList.contains('hidden-screen')) renderVault();
