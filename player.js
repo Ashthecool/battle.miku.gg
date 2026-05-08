@@ -35,6 +35,7 @@
             id: 'common',
             name: 'Common Pack',
             cost: 50,
+            sacrificeCost: 5,
             imagePath: window.supabaseStorageUrl('common.png'),
             svgArt: makePackSVG('common', '#94a3b8', '#64748b'),
             color: '#94a3b8',
@@ -45,6 +46,7 @@
             id: 'rare',
             name: 'Rare Pack',
             cost: 100,
+            sacrificeCost: 10,
             imagePath: window.supabaseStorageUrl('rare.png'),
             svgArt: makePackSVG('rare', '#60a5fa', '#3b82f6'),
             color: '#3b82f6',
@@ -55,6 +57,7 @@
             id: 'epic',
             name: 'Epic Pack',
             cost: 200,
+            sacrificeCost: 20,
             imagePath: window.supabaseStorageUrl('epic.png'),
             svgArt: makePackSVG('epic', '#c084fc', '#a855f7'),
             color: '#a855f7',
@@ -117,8 +120,23 @@
         return isNew;
     }
 
+    function removeCardFromCollection(cardName, amount = 1) {
+        const entry = playerData.collection.find(c => c.name === cardName);
+        if (entry) {
+            entry.count = Math.max(0, entry.count - amount);
+            if (entry.count === 0) {
+                const index = playerData.collection.indexOf(entry);
+                playerData.collection.splice(index, 1);
+            }
+        }
+    }
+
     function totalOwnedCards() {
         return playerData.collection.reduce((s, c) => s + c.count, 0);
+    }
+
+    function totalDuplicateCards() {
+        return playerData.collection.reduce((s, c) => s + Math.max(0, c.count - 1), 0);
     }
 
     function giveStarterCards() {
@@ -213,6 +231,75 @@
         if (playerData.packHistory.length > 30) playerData.packHistory.pop();
 
         savePlayerData();
+        showPackReveal(pulled, pack);
+    }
+
+    function openPackWithSacrifices(packId) {
+        const pack = PACK_TYPES.find(p => p.id === packId);
+        if (!pack) return;
+
+        const errEl = document.getElementById(`not-enough-duplicates-${packId}`);
+        const availableDuplicates = totalDuplicateCards();
+
+        if (availableDuplicates < pack.sacrificeCost) {
+            if (errEl) errEl.classList.remove('hidden');
+            return;
+        }
+        if (errEl) errEl.classList.add('hidden');
+        if (!ALL_CHARS || ALL_CHARS.length === 0) return;
+
+        // Consume duplicate cards
+        const duplicatesNeeded = pack.sacrificeCost;
+        let consumed = 0;
+        const consumedCards = [];
+
+        // Sort by count descending to consume from highest duplicates first
+        const sortedDuplicates = playerData.collection
+            .filter(c => c.count > 1)
+            .sort((a, b) => b.count - a.count);
+
+        for (const card of sortedDuplicates) {
+            if (consumed >= duplicatesNeeded) break;
+
+            const canConsume = Math.min(card.count - 1, duplicatesNeeded - consumed);
+            card.count -= canConsume;
+            consumed += canConsume;
+
+            for (let i = 0; i < canConsume; i++) {
+                consumedCards.push(card.name);
+            }
+        }
+
+        // Clean up any cards that ended up with count 0
+        playerData.collection = playerData.collection.filter(c => c.count > 0);
+
+        playerData.packsOpened++;
+
+        const pool = ALL_CHARS.filter(c => !c.isKeyCard);
+        const pulled = [];
+
+        for (let i = 0; i < 5; i++) {
+            const rarity = rollRarityForPack(pack.weights);
+            const rarityPool = pool.filter(c => c.rarity === rarity);
+            const candidates = rarityPool.length > 0 ? rarityPool : pool;
+            const card = candidates[Math.floor(Math.random() * candidates.length)];
+            const isNew = addCardToCollection(card.name);
+            pulled.push({ name: card.name, rarity: card.rarity, isNew });
+        }
+
+        // Track sacrifice in pack history
+        const sacrificePackName = `${pack.name} (Sacrificed ${consumedCards.length} duplicates)`;
+        playerData.packHistory.unshift({ packId, packName: sacrificePackName, cards: pulled, date: new Date().toLocaleDateString(), sacrificedCards: consumedCards });
+        if (playerData.packHistory.length > 30) playerData.packHistory.pop();
+
+        savePlayerData();
+
+        // Update collection display if currently viewing collection
+        if (state.activeScreen === 'collection') renderCollection();
+
+        // Show sacrifice confirmation
+        showPointsToast('🔥', `Sacrificed ${duplicatesNeeded} duplicates`, `Opened ${pack.name}`);
+
         showPackReveal(pulled, pack);
     }
 
@@ -757,12 +844,16 @@
         const pts = document.getElementById('shop-points-display');
         if (pts) pts.textContent = playerData.points;
 
+        const dups = document.getElementById('shop-duplicates-display');
+        if (dups) dups.textContent = totalDuplicateCards();
+
         const grid = document.getElementById('pack-cards-grid');
         if (!grid) return;
         grid.innerHTML = '';
 
         PACK_TYPES.forEach(pack => {
             const canAfford = playerData.points >= pack.cost;
+            const canSacrifice = totalDuplicateCards() >= pack.sacrificeCost;
             const rarityColors = {COMMON:'#64748b',UNCOMMON:'#10b981',RARE:'#3b82f6',EPIC:'#a855f7',LEGENDARY:'#f59e0b'};
             const oddsRows = Object.entries(pack.weights).map(([r, w]) =>
                 `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 7px;border-radius:6px;background:rgba(255,255,255,0.04);">
@@ -790,16 +881,30 @@
                 <h3 style="font-size:16px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;color:${displayColor};margin-bottom:4px;text-shadow:0 0 20px ${displayColor}66;">${displayName}</h3>
                 <p style="color:rgba(255,255,255,0.2);font-size:10px;font-weight:700;letter-spacing:0.08em;margin-bottom:14px;">5 CARDS PER PACK</p>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:16px;">${oddsRows}</div>
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);margin-bottom:14px;">
-                    <span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:rgba(255,255,255,0.25);">Cost</span>
-                    <span style="font-size:20px;font-weight:900;color:${displayColor};">${pack.cost} <span style="font-size:11px;color:rgba(255,255,255,0.3);font-weight:700;">pts</span></span>
+
+                <!-- Points cost -->
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);margin-bottom:8px;">
+                    <span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:rgba(255,255,255,0.25);">Points Cost</span>
+                    <span style="font-size:16px;font-weight:900;color:${displayColor};">${pack.cost} <span style="font-size:10px;color:rgba(255,255,255,0.3);font-weight:700;">pts</span></span>
                 </div>
                 <button onclick="openPack('${pack.id}')" ${canAfford ? '' : 'disabled'}
-                    class="pack-open-btn w-full justify-center"
+                    class="pack-open-btn w-full justify-center mb-3"
                     style="background:linear-gradient(135deg,${displayColor}bb,${displayColor});box-shadow:0 8px 28px ${pack.glow};">
-                    <i data-lucide="package-open" class="w-4 h-4"></i> Open Pack
+                    <i data-lucide="coins" class="w-4 h-4"></i> Buy with Points
                 </button>
-                <div id="not-enough-points-${pack.id}" class="text-red-400 text-xs font-bold mt-3 hidden text-center">Not enough points!</div>
+                <div id="not-enough-points-${pack.id}" class="text-red-400 text-xs font-bold mb-3 hidden text-center">Not enough points!</div>
+
+                <!-- Sacrifice cost -->
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);margin-bottom:8px;">
+                    <span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:rgba(255,255,255,0.25);">Sacrifice Cost</span>
+                    <span style="font-size:16px;font-weight:900;color:#f59e0b;">${pack.sacrificeCost} <span style="font-size:10px;color:rgba(255,255,255,0.3);font-weight:700;">dups</span></span>
+                </div>
+                <button onclick="openPackWithSacrifices('${pack.id}')" ${canSacrifice ? '' : 'disabled'}
+                    class="pack-open-btn w-full justify-center"
+                    style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 8px 28px rgba(245,158,11,0.4);">
+                    <i data-lucide="flame" class="w-4 h-4"></i> Sacrifice Duplicates
+                </button>
+                <div id="not-enough-duplicates-${pack.id}" class="text-red-400 text-xs font-bold mt-3 hidden text-center">Not enough duplicates!</div>
             `;
             grid.appendChild(card);
         });
@@ -819,13 +924,14 @@
                 const rarityColors = {COMMON:'#64748b',UNCOMMON:'#10b981',RARE:'#3b82f6',EPIC:'#a855f7',LEGENDARY:'#f59e0b'};
                 if (!entry.cards) return;
                 const packDef = PACK_TYPES.find(p => p.id === entry.packId);
+                const isSacrificePack = entry.sacrificedCards && entry.sacrificedCards.length > 0;
                 entry.cards.forEach(c => {
                     const item = document.createElement('div');
                     item.className = 'pack-history-item';
                     item.innerHTML = `
                         <span class="pack-history-rarity" style="background:${rarityColors[c.rarity]||'#64748b'};"></span>
                         <span style="font-size:12px;font-weight:700;flex:1;">${c.name}</span>
-                        ${packDef ? `<span style="font-size:8px;font-weight:900;border-radius:5px;padding:1px 5px;margin-right:4px;background:${packDef.color}22;color:${packDef.color};">${packDef.name}</span>` : ''}
+                        ${packDef ? `<span style="font-size:8px;font-weight:900;border-radius:5px;padding:1px 5px;margin-right:4px;background:${packDef.color}22;color:${packDef.color};">${isSacrificePack ? packDef.name + ' 🔥' : packDef.name}</span>` : ''}
                         <span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;" class="rc-${c.rarity}">${c.rarity}</span>
                         ${c.isNew ? `<span style="font-size:8px;font-weight:900;background:rgba(34,197,94,0.2);color:#4ade80;border-radius:6px;padding:2px 6px;margin-left:4px;">NEW</span>` : ''}
                     `;
