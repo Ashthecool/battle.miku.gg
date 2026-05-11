@@ -808,6 +808,7 @@
     // Set arena difficulty (called before battle starts)
     window.setArenaDifficulty = function(diffLevel) {
         selectedDifficulty = diffLevel;
+        window.selectedDifficulty = diffLevel;
         console.log('Arena difficulty set to:', diffLevel);
     };
 
@@ -1126,7 +1127,7 @@
 
     /* ─── Hook draw() to use active deck ──────────────────── */
     // Weighted random draw from deck (respects card copies owned)
-    function drawFromDeck() {
+    function drawFromDeck(options = {}) {
         if (!playerData || !ALL_CHARS) return;
         if (state.hand.length >= 4) return;
 
@@ -1137,7 +1138,7 @@
 
         const name = pool[Math.floor(Math.random() * pool.length)];
         const card = ALL_CHARS.find(c => c.name === name);
-        if (card) state.hand.push({ ...card, maxHp: card.hp ?? card.maxHp });
+        if (card) state.hand.push({ ...card, maxHp: card.hp ?? card.maxHp, _speechPendingDraw: !options.silent });
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -1490,6 +1491,23 @@
         configurable: true
     });
 
+    function _applyDialogueOverride() {
+        const _origShowDialogue = typeof window.showDialogue === 'function' ? window.showDialogue : null;
+        if (_origShowDialogue && !window._showDialogueOverridden) {
+            const originalShowDialogue = window.showDialogue;
+            window.showDialogue = async function(speaker, text, opts = {}) {
+                if (_storyModeActive && _activeStoryChapter && !opts._isStory) {
+                    if (speaker === 'Opponent') {
+                        speaker = _activeStoryChapter.opponent.name;
+                        opts = { ...opts, portrait: _activeStoryChapter.opponent.portrait };
+                    }
+                }
+                return originalShowDialogue(speaker, text, opts);
+            };
+            window._showDialogueOverridden = true;
+        }
+    }
+
     /* ─── Which chapter is currently expanded on the map ──────── */
     let _expandedChapterId = null;
 
@@ -1779,7 +1797,7 @@
             state.pBoard = [null,null,null,null];
             state.eBoard = [null,null,null,null];
             state.hand = []; state.turn = 1; state.mana = 1; state.maxMana = 1;
-            for (let i = 0; i < 4; i++) draw();
+            for (let i = 0; i < 4; i++) draw({ silent: true });
             updateBattleUI();
         }
         setTimeout(() => showStoryIntro(lv), 800);
@@ -1787,23 +1805,19 @@
 
     /* ─── Intro / outro dialogue ───────────────────────────────── */
     async function showStoryIntro(lv) {
+        _applyDialogueOverride();
         for (const line of lv.dialogue.intro) {
-            await showDialogue(lv.opponent.name, line, { portrait: lv.opponent.portrait, autoClose: false, _isStory: true });
-            await new Promise(r => {
-                const box = document.getElementById('vn-dialogue');
-                if (box) { const h = () => { box.removeEventListener('click', h); r(); }; box.addEventListener('click', h); }
-                else setTimeout(r, 1500);
-            });
+            await showDialogue(lv.opponent.name, line, { portrait: lv.opponent.portrait, _isStory: true });
         }
     }
 
     async function showStoryOutro(isWin) {
+        _applyDialogueOverride();
         const lv = _activeStoryLevel;
         if (!lv) return;
         const lines = isWin ? lv.dialogue.win : lv.dialogue.lose;
         for (const line of lines) {
             await showDialogue(lv.opponent.name, line, { portrait: lv.opponent.portrait, autoClose: true, _isStory: true });
-            await new Promise(r => setTimeout(r, 2200));
         }
     }
 
@@ -2416,19 +2430,7 @@
             }
         }, 200);
 
-        // Override dialogue speaker so story opponents use their real name
-        const _origShowDialogue = typeof window.showDialogue === 'function' ? window.showDialogue : null;
-        if (_origShowDialogue) {
-            window.showDialogue = async function(speaker, text, opts = {}) {
-                if (_storyModeActive && _activeStoryChapter && !opts._isStory) {
-                    if (speaker === 'Opponent') {
-                        speaker = _activeStoryChapter.opponent.name;
-                        opts = { ...opts, portrait: _activeStoryChapter.opponent.portrait };
-                    }
-                }
-                return _origShowDialogue(speaker, text, opts);
-            };
-        }
+        _applyDialogueOverride();
     });
 
 console.log('[Player + Story] Combined script loaded — Redesigned Map Ready.');

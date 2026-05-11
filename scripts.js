@@ -101,6 +101,63 @@ lucide.createIcons();
         // Helper to pause the game engine for a set number of milliseconds
         const delay = ms => new Promise(res => setTimeout(res, ms));
 
+        const DEFAULT_CARD_SPEECH = {
+            draw: ["I'm ready.", "Call on me.", "Let's do this."],
+            play: ["I'm in.", "Taking position.", "Here I come."],
+            attack: ["Attack!", "I strike!", "No holding back."],
+            attacked: ["I'm hit!", "Hey!", "I can take it."]
+        };
+
+        const CARD_SPEECH_KEYS = {
+            draw: ['draw', 'drawn', 'onDraw'],
+            play: ['play', 'place', 'placed', 'summon', 'summoned', 'onPlay'],
+            attack: ['attack', 'attacks', 'onAttack'],
+            attacked: ['attacked', 'hit', 'hurt', 'getsAttacked', 'whenAttacked', 'onAttacked']
+        };
+
+        function pickRandomLine(lines) {
+            const pool = Array.isArray(lines) ? lines.filter(Boolean) : [lines].filter(Boolean);
+            if (pool.length === 0) return '';
+            return String(pool[Math.floor(Math.random() * pool.length)]);
+        }
+
+        function getCardSpeechLine(card, eventName) {
+            if (!card) return pickRandomLine(DEFAULT_CARD_SPEECH[eventName]);
+
+            const speechSources = [card.speech, card.speechLines, card.quotes, card.dialogue, card.voiceLines];
+            const keys = CARD_SPEECH_KEYS[eventName] || [eventName];
+
+            for (const source of speechSources) {
+                if (!source) continue;
+                if (typeof source === 'string' || Array.isArray(source)) return pickRandomLine(source);
+                for (const key of keys) {
+                    if (source[key]) return pickRandomLine(source[key]);
+                }
+            }
+
+            return pickRandomLine(DEFAULT_CARD_SPEECH[eventName]);
+        }
+
+        function showCardSpeech(cardEl, card, eventName, opts = {}) {
+            if (!cardEl || !card) return;
+
+            const line = opts.text || getCardSpeechLine(card, eventName);
+            if (!line) return;
+
+            cardEl.querySelectorAll('.card-speech-bubble').forEach(el => el.remove());
+
+            const bubble = document.createElement('div');
+            bubble.className = `card-speech-bubble card-speech-${eventName}`;
+            bubble.textContent = line;
+            cardEl.appendChild(bubble);
+
+            setTimeout(() => bubble.classList.add('is-visible'), 20);
+            setTimeout(() => {
+                bubble.classList.remove('is-visible');
+                setTimeout(() => bubble.remove(), 240);
+            }, opts.duration || 1800);
+        }
+
         function evaluateScenario(scenario, unit, context = {}) {
                     // If no scenario exists, return 1 (true) so default cards still trigger
                     if (!scenario) return 1;
@@ -2158,6 +2215,17 @@ lucide.createIcons();
             setTimeout(() => el.classList.remove(className), 600);
         }
 
+        function animateCardDeath(el, callback) {
+            if(!el) {
+                if(callback) callback();
+                return;
+            }
+            el.classList.add('is-dying');
+            setTimeout(() => {
+                if(callback) callback();
+            }, 550); // Match the animation duration
+        }
+
         function getSlotCard(side, idx) {
             return document.querySelector(`#${side}-slot-${idx} .card-nexus`);
         }
@@ -2678,12 +2746,17 @@ lucide.createIcons();
             // Only apply entry animation once
             const anims = { 'COMMON': 'anim-common', 'UNCOMMON': 'anim-uncommon', 'RARE': 'anim-rare', 'EPIC': 'anim-epic', 'LEGENDARY': 'anim-legendary' };
             if(status.justPlayed) {
+                div.classList.add('is-summoning');
                 div.classList.add(anims[card.rarity]);
             }
 
 
 
-            if(type !== 'preview') div.draggable = true;
+            if(type !== 'preview') {
+                // Only make cards draggable if they're not exhausted and not silenced
+                const isReady = !status.exhausted && (!status.silenced || status.silenced <= 0);
+                div.draggable = isReady;
+            }
 
                 // Set rank data attribute for CSS border tinting
             if (card.rank) div.dataset.rank = card.rank.toUpperCase();
@@ -2714,10 +2787,16 @@ lucide.createIcons();
 
             
 
-            // ... (Keep your existing drag events) ...
+                    // ... (Keep your existing drag events) ...
                     if(type !== 'preview') {
-                        div.ondragstart = (e) => { 
-                            state.dragging = { type, index }; 
+                        div.ondragstart = (e) => {
+                            // Check if card is ready to be dragged
+                            const isReady = type === 'hand' || (status && !status.exhausted && (!status.silenced || status.silenced <= 0) && (!status.invincible || status.invincible <= 0) && card.hp > 0);
+                            if (!isReady) {
+                                e.preventDefault();
+                                return false;
+                            }
+                            state.dragging = { type, index };
                             e.dataTransfer.setData('text/plain', '');
                             e.currentTarget.style.opacity = '0.5';
                             // Hide preview while dragging
@@ -2788,7 +2867,7 @@ lucide.createIcons();
 
                 // Fill any remaining empty slots (up to 4) with random cards
                 while (state.hand.length < 4) {
-                    draw();
+                    draw({ silent: true });
                 }
                 // ----------------------------
 
@@ -2878,7 +2957,7 @@ lucide.createIcons();
             updateBattleUI();
         }
 
-        function draw() {
+        function draw(options = {}) {
             if (state.hand.length < 4) {
 
                 // Only show cards that are NOT marked as Key Cards
@@ -2886,10 +2965,66 @@ lucide.createIcons();
                 // Correctly picks a random card from the array using a numeric index
                 const randomCard = collectibleCards[Math.floor(Math.random() * collectibleCards.length)];
                 if (randomCard) {
-                    state.hand.push({ ...randomCard });
+                    state.hand.push({ ...randomCard, _speechPendingDraw: !options.silent });
                 }
             }
         }
+
+        // Dialogue functions
+        async function speak(speaker, text, opts = {}) {
+            const dialogueBox = document.getElementById('vn-dialogue');
+            const speakerEl = document.getElementById('vn-speaker');
+            const textEl = document.getElementById('vn-text');
+            const portraitEl = document.getElementById('vn-portrait');
+
+            if (!dialogueBox || !speakerEl || !textEl) return;
+
+            // Set speaker
+            speakerEl.textContent = speaker;
+
+            // Set portrait if provided
+            if (opts.portrait) {
+                portraitEl.innerHTML = `<img src="${opts.portrait}" alt="${speaker}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">`;
+            } else {
+                portraitEl.innerHTML = '<div class="portrait-fallback">⚔️</div>';
+            }
+
+            // Set text
+            textEl.textContent = text;
+
+            // Show dialogue. Both classes are kept because the newer CSS uses
+            // vn-visible while older story helpers still refer to visible.
+            dialogueBox.classList.add('visible', 'vn-visible');
+
+            // Return a promise that resolves when clicked or auto-closed
+            return new Promise(resolve => {
+                let resolved = false;
+
+                const clickHandler = () => {
+                    if (resolved) return;
+                    resolved = true;
+                    dialogueBox.removeEventListener('click', clickHandler);
+                    dialogueBox.classList.remove('visible', 'vn-visible');
+                    resolve();
+                };
+
+                dialogueBox.addEventListener('click', clickHandler);
+
+                // Auto-close if requested
+                if (opts.autoClose) {
+                    setTimeout(() => {
+                        if (resolved) return;
+                        resolved = true;
+                        dialogueBox.removeEventListener('click', clickHandler);
+                        dialogueBox.classList.remove('visible', 'vn-visible');
+                        resolve();
+                    }, 2200);
+                }
+            });
+        }
+
+        // Alias for speak function
+        window.showDialogue = speak;
 
         // Returns a stable key for a card unit's visible state.
         // renderBattleSlot uses this to skip re-rendering (and re-loading images)
@@ -2987,6 +3122,12 @@ lucide.createIcons();
                 }
             }
 
+            state.hand.forEach((c, i) => {
+                if (!c || !c._speechPendingDraw) return;
+                delete c._speechPendingDraw;
+                setTimeout(() => showCardSpeech(getPlayerHandCard(i), c, 'draw'), 80);
+            });
+
             const _pLen = (window._boardSlotCount?.player) ?? state.pBoard.length;
             const _eLen = (window._boardSlotCount?.enemy)  ?? state.eBoard.length;
             for (let i = 0; i < Math.max(_pLen, _eLen); i++) {
@@ -2996,6 +3137,36 @@ lucide.createIcons();
 
             applyHandFan();
             markReadyCards();
+        }
+
+        function markReadyCards() {
+            // Mark cards that are ready to attack (not exhausted, not silenced)
+            ['player', 'enemy'].forEach(side => {
+                const board = side === 'player' ? state.pBoard : state.eBoard;
+                board.forEach((unit, idx) => {
+                    const slotEl = document.getElementById(`${side}-slot-${idx}`);
+                    if (!slotEl || !unit || !unit.card) return;
+
+                    const cardEl = slotEl.querySelector('.card-nexus');
+                    if (!cardEl) return;
+
+                    // Initialize status if it doesn't exist
+                    if (!unit.status) unit.status = {};
+
+                    const isExhausted = unit.status.exhausted === true;
+                    const isSilenced = (unit.status.silenced || 0) > 0;
+                    const isDead = unit.card.hp <= 0;
+                    const isReady = !isExhausted && !isSilenced && !isDead;
+
+                    if (isReady) {
+                        cardEl.classList.remove('is-exhausted');
+                        cardEl.draggable = side === 'player';
+                    } else {
+                        cardEl.classList.add('is-exhausted');
+                        cardEl.draggable = false;
+                    }
+                });
+            });
         }
 
         async function renderBattleSlot(side, idx) {
@@ -3013,6 +3184,7 @@ lucide.createIcons();
             // This avoids a full innerHTML rebuild and keeps the card image stable.
             if (
                 unit &&
+                unit.card.hp > 0 && // Don't patch stats for dead units
                 slot.dataset.structuralKey === newStructKey &&
                 slot.dataset.statKey !== newStatKey &&
                 _patchCardStats(slot, unit)
@@ -3027,8 +3199,12 @@ lucide.createIcons();
             slot.dataset.structuralKey = newStructKey;
             slot.dataset.statKey       = newStatKey;
 
-            if (unit) {
+            if (unit && unit.card.hp > 0) { // Don't render dead units
                 const cardDiv = await createCardUI(unit.card, idx, 'board', unit.status);
+                if (side === 'enemy') {
+                    cardDiv.draggable = false;
+                    cardDiv.ondragstart = null;
+                }
                 slot.innerHTML = '';
                 slot.appendChild(cardDiv);
                 if (unit.status.justPlayed) {
@@ -3099,7 +3275,8 @@ lucide.createIcons();
                     state.hand.splice(state.dragging.index, 1);
                     log(`${c.name.toUpperCase()} DEPLOYED.`);
                     await triggerCardEvent('onPlay', cardUnit, { slot: idx, side: 'player', board: state.pBoard });
-                    updateBattleUI();
+                    await updateBattleUI();
+                    setTimeout(() => showCardSpeech(getSlotCard('player', idx), cardUnit.card, 'play'), 120);
                 }
             } else if(state.dragging.type === 'board' && side === 'enemy') {
                 await handleStrike(state.dragging.index, idx);
@@ -3143,6 +3320,7 @@ lucide.createIcons();
             atkEl?.style.setProperty('--slam-target-y', `${slamTargetY}px`);
 
             // Physical Slam
+            showCardSpeech(atkEl, atk.card, 'attack');
             animateCard(atkEl, 'animate-slam-up');
             
             // Impact Flicker (starts 200ms into the slam)
@@ -3152,7 +3330,9 @@ lucide.createIcons();
             }, 200);
 
             // Update HP and UI after the visual hit
-            setTimeout(async () => {
+            await new Promise(resolve => {
+                setTimeout(async () => {
+                    try {
                 if(atk.card.ability === 'heal') {
                     animateCard(document.getElementById('player-hp'), 'animate-heal');
                 }
@@ -3160,6 +3340,7 @@ lucide.createIcons();
                 // Track HP before damage for Berserk calculations
                 const preDefHp = def.card.hp;
 
+                showCardSpeech(defEl, def.card, 'attacked');
                 await triggerCardEvent('whenAttacked', def, { target: atk, slot: eIdx, side: 'enemy', board: state.eBoard });
                 await triggerCardEvent('whenAttacked', atk, { target: def, slot: pIdx, side: 'player', board: state.pBoard });
 
@@ -3279,7 +3460,11 @@ lucide.createIcons();
 
                 updateBattleUI();
                 checkVictory();
-            }, 400);
+                    } finally {
+                        resolve();
+                    }
+                }, 400);
+            });
         }
 
         async function dropOnNexus(side) {
@@ -3293,6 +3478,7 @@ lucide.createIcons();
                 }
                 if(state.eBoard.some(u => u && u.card.ability === 'guard')) return log("CORE GUARDED.");
 
+                showCardSpeech(atkEl, atk.card, 'attack');
                 animateCard(atkEl, 'animate-attack');
                 state.eHp -= atk.card.atk;
                 animateCard(document.getElementById('enemy-hp'), 'animate-ability');
@@ -3328,7 +3514,75 @@ lucide.createIcons();
             state.dragging = null;
         }
 
-        async function endTurn() {
+        function showTurnBanner(side, text) {
+            const existing = document.getElementById('turn-banner');
+            if (existing) existing.remove();
+
+            const banner = document.createElement('div');
+            banner.id = 'turn-banner';
+            banner.innerHTML = `<div class="turn-banner-inner ${side}">${text}</div>`;
+            document.body.appendChild(banner);
+
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    banner.remove();
+                    resolve();
+                }, 1650);
+            });
+        }
+
+        function getEnemyTurnSpeaker() {
+            const storyOpponent = window._activeStoryChapter?.opponent;
+            return {
+                name: storyOpponent?.name || 'Opponent',
+                portrait: storyOpponent?.portrait || null
+            };
+        }
+
+        async function enemyTurnSpeak(text, linger = 1500) {
+            const speaker = getEnemyTurnSpeaker();
+            const show = window.showDialogue || speak;
+            await show(speaker.name, text, {
+                portrait: speaker.portrait,
+                autoClose: true
+            });
+            if (linger > 0) await delay(linger);
+        }
+
+        function pickEnemyCardForTurn(collectibleCards) {
+            if (typeof window.pickEnemyCard === 'function') {
+                const picked = window.pickEnemyCard();
+                if (picked) return picked;
+            }
+
+            const diffLevel = window.selectedDifficulty || 1;
+            const rarityOrder = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+            const maxRarityIndex = Math.min(Math.max(0, diffLevel - 1), 4);
+            const minRarityIndex = Math.max(0, diffLevel - 3);
+            const filteredCards = collectibleCards.filter(c => {
+                const rarityIdx = rarityOrder.indexOf(c.rarity);
+                return rarityIdx >= 0 && rarityIdx >= minRarityIndex && rarityIdx <= maxRarityIndex;
+            });
+            const cardPool = filteredCards.length > 0 ? filteredCards : collectibleCards;
+            return cardPool[Math.floor(Math.random() * cardPool.length)];
+        }
+
+        function chooseEnemyAttackTarget() {
+            const guardIndex = state.pBoard.findIndex(v => v && v.card.ability === 'guard');
+            if (guardIndex !== -1) {
+                return { type: 'unit', idx: guardIndex, label: state.pBoard[guardIndex].card.name };
+            }
+
+            const validTargets = [{ type: 'nexus', label: 'the Nexus' }];
+            state.pBoard.forEach((pUnit, idx) => {
+                if (pUnit && (!pUnit.status || !pUnit.status.invisible || pUnit.status.invisible <= 0)) {
+                    validTargets.push({ type: 'unit', idx, label: pUnit.card.name });
+                }
+            });
+            return validTargets[Math.floor(Math.random() * validTargets.length)];
+        }
+
+        async function legacyEndTurn() {
             // 1. Trigger End of Turn effects
             for (const group of [
                 { side: 'player', board: state.pBoard },
@@ -3349,9 +3603,13 @@ lucide.createIcons();
                 }
             }
 
+            // Refresh mana at the start of player's turn (before enemy acts)
+            if(state.maxMana < 10) state.maxMana++;
+            state.mana = state.maxMana;
+
             updateBattleUI();
             log("ENEMY CYCLE STARTING...");
-            
+
             const collectibleCards = ALL_CHARS.filter(c => !c.isKeyCard);
 
             setTimeout(async () => {
@@ -3509,12 +3767,8 @@ lucide.createIcons();
                             animateCard(getSlotCard('enemy', enemyIdx), 'animate-attack');
                             u.status.exhausted = true;
                         }
-                    }
-            }
-            );
 
-                    // Reset enemy statuses and decrement temporary effects
-                if (u) { {
+                        // Reset enemy statuses and decrement temporary effects
                         if (u.status.invincible > 0) u.status.invincible--;
                         if (u.status.shield > 0) u.status.shield--;
                         if (u.status.reflect > 0) u.status.reflect--;
@@ -3523,11 +3777,9 @@ lucide.createIcons();
                         if (u.status.silenced > 0) u.status.silenced--;
                         u.status.justPlayed = false;
                     }
-                };
-                
-                // 4. Resource Refresh
-                if(state.maxMana < 10) state.maxMana++;
-                state.mana = state.maxMana;
+                });
+
+
 
                 // 5. Reset player statuses and decrement temporary effects
                 state.pBoard.forEach(u => { 
@@ -3550,7 +3802,10 @@ lucide.createIcons();
                     if (u && u.status?.charmedBy) delete u.status.charmedBy;
                 });
 
-                // 6. Trigger OnTurnStart effects
+                // 6. Player draws a card at the start of their turn
+                draw();
+
+                // 7. Trigger OnTurnStart effects
                 for (const group of [
                     { side: 'player', board: state.pBoard },
                     { side: 'enemy', board: state.eBoard }
@@ -3581,6 +3836,300 @@ lucide.createIcons();
         // OWNED CARDS — single source of truth: localStorage key 'ownedCards'
         // All screens (lobby, my collection, library) read from this same place.
         // ══════════════════════════════════════════════════════════════════════════
+
+        async function endTurn() {
+            if (state.enemyActing) return;
+            state.enemyActing = true;
+
+            try {
+                for (const group of [
+                    { side: 'player', board: state.pBoard },
+                    { side: 'enemy', board: state.eBoard }
+                ]) {
+                    for (let idx = 0; idx < group.board.length; idx++) {
+                        const unit = group.board[idx];
+                        if (!unit) continue;
+
+                        await triggerCardEvent('onTurnEnd', unit, { side: group.side, slot: idx, board: group.board });
+                        if (group.side === 'player' && unit.status.exhausted === false) {
+                            await triggerCardEvent('whenNotAttack', unit, { side: group.side, slot: idx, board: group.board });
+                            log(`${unit.card.name.toUpperCase()} DID NOT ATTACK, TRIGGERING ABILITY!`);
+                        }
+                        if (group.side === 'player' && unit.status.silenced > 0) {
+                            unit.status.silenced--;
+                        }
+                    }
+                }
+
+                if (state.maxMana < 10) state.maxMana++;
+                state.mana = state.maxMana;
+                updateBattleUI();
+                log("ENEMY CYCLE STARTING...");
+
+                const collectibleCards = ALL_CHARS.filter(c => !c.isKeyCard);
+                await showTurnBanner('enemy', 'Enemy Turn');
+                await enemyTurnSpeak('My move.');
+
+                const slot = state.eBoard.findIndex(s => s === null);
+                if (slot !== -1 && collectibleCards.length > 0) {
+                    const c = pickEnemyCardForTurn(collectibleCards);
+                    if (c) {
+                        await enemyTurnSpeak(`I place ${c.name}.`, 500);
+                        const enemyUnit = { card: cloneCard(c), status: { exhausted: true, justPlayed: true, silenced: false } };
+                        state.eBoard[slot] = enemyUnit;
+                        await updateBattleUI();
+                        setTimeout(() => showCardSpeech(getSlotCard('enemy', slot), enemyUnit.card, 'play'), 120);
+                        await triggerCardEvent('onPlay', enemyUnit, { slot, side: 'enemy', board: state.eBoard });
+                        await delay(650);
+                    }
+                } else {
+                    await enemyTurnSpeak('No open place. Attack formation only.', 500);
+                }
+
+                for (let enemyIdx = 0; enemyIdx < state.eBoard.length; enemyIdx++) {
+                    const u = state.eBoard[enemyIdx];
+                    if (!u || !u.card || u.card.hp <= 0 || u.status.exhausted || u.status.silenced) continue;
+
+                    const target = chooseEnemyAttackTarget();
+                    await enemyTurnSpeak(`${u.card.name}, attack ${target.label}!`, 350);
+                    await performEnemyStrike(u, enemyIdx, target);
+
+                    const isEnergised = u.status.energised;
+                    const isHaste2 = u.card.ability === 'haste2';
+                    if ((isHaste2 || isEnergised) && u.card.hp > 0) {
+                        const bonusTarget = chooseEnemyAttackTarget();
+                        log(`${u.card.name} ${isEnergised ? '(ENERGISED)' : '(HASTE2)'} strikes again!`);
+                        await enemyTurnSpeak(`${u.card.name}, again. Hit ${bonusTarget.label}!`, 350);
+                        await performEnemyStrike(u, enemyIdx, bonusTarget);
+                    }
+
+                    u.status.exhausted = true;
+                }
+
+                state.eBoard.forEach(u => {
+                    if (!u) return;
+                    if (u.status.invincible > 0) u.status.invincible--;
+                    if (u.status.shield > 0) u.status.shield--;
+                    if (u.status.reflect > 0) u.status.reflect--;
+                    if (u.status.invisible > 0) u.status.invisible--;
+                    if (u.status.silenced > 0) u.status.silenced--;
+                    if (u.status.charmedBy) delete u.status.charmedBy;
+                    u.status.exhausted = false;
+                    u.status.justPlayed = false;
+                });
+
+                state.pBoard.forEach(u => {
+                    if (!u) return;
+                    if (u.status.invincible > 0) u.status.invincible--;
+                    if (u.status.shield > 0) u.status.shield--;
+                    if (u.status.reflect > 0) u.status.reflect--;
+                    if (u.status.invisible > 0) u.status.invisible--;
+                    u.status.exhausted = false;
+                    u.status.justPlayed = false;
+                    if (u.status.charmedBy) delete u.status.charmedBy;
+                    if (u.status._mariaHealedThisTurn) u.status._mariaHealedThisTurn.clear();
+                });
+
+                draw();
+
+                for (const group of [
+                    { side: 'player', board: state.pBoard },
+                    { side: 'enemy', board: state.eBoard }
+                ]) {
+                    for (let idx = 0; idx < group.board.length; idx++) {
+                        const unit = group.board[idx];
+                        if (unit) {
+                            await triggerCardEvent('onTurnStart', unit, { side: group.side, slot: idx, board: group.board });
+                        }
+                    }
+                }
+
+                await showTurnBanner('player', 'Your Turn');
+                updateBattleUI();
+                checkVictory();
+            } finally {
+                state.enemyActing = false;
+            }
+        }
+
+        async function performEnemyStrike(u, enemyIdx, target) {
+            if (!u || !u.card || u.card.hp <= 0) return false;
+
+            const attackerEl = getSlotCard('enemy', enemyIdx);
+
+            if (target.type === 'nexus') {
+                showCardSpeech(attackerEl, u.card, 'attack');
+                animateCard(attackerEl, 'animate-attack');
+                state.pHp -= u.card.atk;
+                log(`${u.card.name} hits your nexus for ${u.card.atk}.`);
+                animateCard(document.getElementById('player-hp'), 'animate-ability');
+                await triggerCardEvent('onAttack', u, {
+                    target: 'playerNexus',
+                    side: 'enemy',
+                    board: state.eBoard,
+                    opponentBoard: state.pBoard
+                });
+                if (u.card.ability === 'heal') {
+                    const healAmount = Math.max(1, Math.floor(u.card.atk / 2));
+                    state.eHp = Math.min(30, state.eHp + healAmount);
+                    log(`ENEMY HEAL: +${healAmount} to enemy nexus.`);
+                    animateCard(document.getElementById('enemy-hp'), 'animate-heal');
+                }
+                await updateBattleUI();
+                checkVictory();
+                await delay(650);
+                return true;
+            }
+
+            const targetIdx = target.idx;
+            const targetUnit = state.pBoard[targetIdx];
+            if (!targetUnit || !targetUnit.card) return false;
+
+            if (u.status?.charmedBy && targetUnit.card.name === u.status.charmedBy) {
+                log(`${u.card.name} is CHARMED - cannot strike ${u.status.charmedBy}! Attack cancelled.`);
+                u.status.exhausted = true;
+                return false;
+            }
+
+            const preDefHp = targetUnit.card.hp;
+            const defenderEl = getSlotCard('player', targetIdx);
+            const attackerRect = attackerEl?.getBoundingClientRect();
+            const defenderRect = defenderEl?.getBoundingClientRect();
+            const attackerX = attackerRect?.x ?? 0;
+            const attackerY = attackerRect?.y ?? 0;
+            const defenderX = defenderRect?.x ?? 0;
+            const defenderY = defenderRect?.y ?? 0;
+
+            attackerEl?.style.setProperty('--attacker-x', `${attackerX}px`);
+            attackerEl?.style.setProperty('--attacker-y', `${attackerY}px`);
+            attackerEl?.style.setProperty('--defender-x', `${defenderX}px`);
+            attackerEl?.style.setProperty('--defender-y', `${defenderY}px`);
+            attackerEl?.style.setProperty('--slam-target-x', `${defenderX - attackerX}px`);
+            attackerEl?.style.setProperty('--slam-target-y', `${defenderY - attackerY}px`);
+
+            animateCard(attackerEl, 'animate-slam-up');
+            showCardSpeech(attackerEl, u.card, 'attack');
+            setTimeout(() => {
+                animateCard(attackerEl, 'animate-hit-flicker');
+                animateCard(defenderEl, 'animate-hit-flicker');
+            }, 200);
+
+            showCardSpeech(defenderEl, targetUnit.card, 'attacked');
+            await triggerCardEvent('whenAttacked', targetUnit, { target: u, slot: targetIdx, side: 'player', board: state.pBoard });
+            await triggerCardEvent('whenAttacked', u, { target: targetUnit, slot: enemyIdx, side: 'enemy', board: state.eBoard });
+
+            let actualDamageToTarget = u.card.atk;
+            if (targetUnit.status && targetUnit.status.invincible > 0) {
+                log(`INVINCIBLE: ${targetUnit.card.name} blocked the hit!`);
+                actualDamageToTarget = 0;
+            } else if (targetUnit.status && targetUnit.status.shield > 0) {
+                const shieldAbsorbed = Math.min(targetUnit.status.shield, u.card.atk);
+                targetUnit.status.shield -= shieldAbsorbed;
+                actualDamageToTarget = u.card.atk - shieldAbsorbed;
+                log(`${targetUnit.card.name.toUpperCase()}'S SHIELD ABSORBS ${shieldAbsorbed} DAMAGE! (${targetUnit.status.shield} SHIELD REMAINING)`);
+                if (actualDamageToTarget > 0) {
+                    log(`${targetUnit.card.name} takes ${actualDamageToTarget} damage through shield.`);
+                }
+            }
+
+            if (actualDamageToTarget > 0) {
+                targetUnit.card.hp -= actualDamageToTarget;
+                log(`${u.card.name} hits ${targetUnit.card.name} for ${actualDamageToTarget}.`);
+            } else if (actualDamageToTarget === 0 && !(targetUnit.status && targetUnit.status.invincible > 0)) {
+                log(`${u.card.name} hits ${targetUnit.card.name} but shield blocks all damage.`);
+            }
+
+            let actualDamageToAI = targetUnit.card.atk;
+            if (u.status && u.status.invincible > 0) {
+                log(`INVINCIBLE: ${u.card.name} takes no counter damage!`);
+                actualDamageToAI = 0;
+            } else if (targetUnit.status && targetUnit.status.reflect > 0) {
+                const reflectDamage = Math.min(targetUnit.status.reflect, targetUnit.card.atk);
+                actualDamageToAI = targetUnit.card.atk + reflectDamage;
+                log(`${targetUnit.card.name.toUpperCase()} REFLECTS ${reflectDamage} DAMAGE BACK TO ${u.card.name.toUpperCase()}!`);
+            }
+
+            if (actualDamageToAI > 0) {
+                u.card.hp -= actualDamageToAI;
+            }
+
+            if (u.card.ability === 'silence') {
+                targetUnit.status.silenced = (targetUnit.status.silenced || 0) + 1;
+                log(`${targetUnit.card.name} is SILENCED.`);
+                animateCard(defenderEl, 'animate-ability');
+            }
+
+            if (u.card.ability === 'heal') {
+                const healAmount = Math.min(5, Math.ceil(u.card.atk / 2));
+                state.eHp = Math.min(30, state.eHp + healAmount);
+                log(`ENEMY HEAL: +${healAmount} to enemy nexus.`);
+                animateCard(document.getElementById('enemy-hp'), 'animate-heal');
+            }
+
+            if (u.card.ability === 'splash') {
+                [targetIdx - 1, targetIdx + 1].forEach(adj => {
+                    if (state.pBoard[adj]) {
+                        state.pBoard[adj].card.hp -= 1;
+                        if (state.pBoard[adj].card.hp <= 0) {
+                            log(`${state.pBoard[adj].card.name} TAKES SPLASH AND DIES`);
+                            animateCardDeath(getSlotCard('player', adj), () => { state.pBoard[adj] = null; });
+                        } else {
+                            log(`${state.pBoard[adj].card.name} TAKES SPLASH`);
+                            updateCardStats('player', adj);
+                        }
+                    }
+                });
+                animateCard(defenderEl, 'animate-ability');
+            }
+
+            await triggerCardEvent('onAttack', u, {
+                target: targetUnit,
+                targetIdx,
+                defenderHp: preDefHp,
+                side: 'enemy',
+                board: state.eBoard,
+                opponentBoard: state.pBoard
+            });
+
+            if (targetUnit.card.hp > 0) await updateCardStats('player', targetIdx);
+            if (u.card.hp > 0) await updateCardStats('enemy', enemyIdx);
+
+            if (targetUnit.card.hp <= 0) {
+                log(`${targetUnit.card.name} is destroyed.`);
+                await triggerCardEvent('onDeath', targetUnit, { slot: targetIdx, side: 'player', board: state.pBoard, killedBy: u });
+                if (targetUnit.card.hp <= 0) {
+                    animateCardDeath(getSlotCard('player', targetIdx), () => { state.pBoard[targetIdx] = null; });
+                }
+
+                if (u.card.ability === 'berserk') {
+                    const overflow = Math.max(0, u.card.atk - preDefHp);
+                    if (overflow > 0) {
+                        state.pHp -= overflow;
+                        log(`BERSERK OVERFLOW: ${overflow} damage to nexus.`);
+                    }
+                }
+            }
+
+            if (u.card.hp <= 0) {
+                await triggerCardEvent('onDeath', u, { slot: enemyIdx, side: 'enemy', board: state.eBoard, killedBy: targetUnit });
+                if (u.card.hp <= 0) animateCardDeath(getSlotCard('enemy', enemyIdx), () => { state.eBoard[enemyIdx] = null; });
+            }
+
+            await updateBattleUI();
+            checkVictory();
+            await delay(650);
+            return true;
+        }
+
+        function checkVictory() {
+            if (state.pHp <= 0) {
+                log("ENEMY VICTORY!");
+                // TODO: Show victory screen for enemy
+            } else if (state.eHp <= 0) {
+                log("PLAYER VICTORY!");
+                // TODO: Show victory screen for player
+            }
+        }
 
         /** Returns a Set of card names the player currently owns. */
         function getOwnedCardNames() {

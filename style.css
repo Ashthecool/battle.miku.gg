@@ -103,6 +103,55 @@
         .animate-ability { animation: ability-flash 0.65s ease-in-out forwards; }
         .animate-silenced { animation: ability-flash 0.65s ease-in-out forwards; filter: grayscale(1) brightness(0.8); }
 
+        .card-speech-bubble {
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 8px);
+            transform: translate(-50%, 8px) scale(0.94);
+            max-width: 190px;
+            min-width: 76px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(8, 7, 16, 0.94);
+            color: #f8fafc;
+            font-size: 11px;
+            line-height: 1.25;
+            font-weight: 800;
+            text-align: center;
+            box-shadow: 0 14px 34px rgba(0,0,0,0.55), 0 0 18px rgba(129,140,248,0.22);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 500;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            white-space: normal;
+        }
+
+        .card-speech-bubble::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 100%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: rgba(8, 7, 16, 0.94);
+        }
+
+        .card-speech-bubble.is-visible {
+            opacity: 1;
+            transform: translate(-50%, 0) scale(1);
+        }
+
+        .card-speech-attack {
+            border-color: rgba(248,113,113,0.38);
+            box-shadow: 0 14px 34px rgba(0,0,0,0.55), 0 0 22px rgba(248,113,113,0.24);
+        }
+
+        .card-speech-attacked {
+            border-color: rgba(251,191,36,0.4);
+            box-shadow: 0 14px 34px rgba(0,0,0,0.55), 0 0 22px rgba(251,191,36,0.24);
+        }
+
         /* Card Styling */
         .card-nexus {
             width: 150px;
@@ -814,13 +863,15 @@
 
         /* ── 4. CARD PLAY / SUMMON ANIMATION ─────────────────────── */
         @keyframes card-summon {
-            0%   { transform: translateY(40px) scale(0.7); opacity: 0; filter: brightness(3); }
-            50%  { transform: translateY(-8px) scale(1.08); opacity: 1; filter: brightness(1.4); }
-            100% { transform: translateY(0)   scale(1);   opacity: 1; filter: brightness(1); }
+            0%   { transform: translateY(58px) scale(0.45) rotateX(62deg); opacity: 0; filter: brightness(4) saturate(1.8) blur(2px); box-shadow: 0 0 0 rgba(255,255,255,0); }
+            38%  { transform: translateY(-16px) scale(1.16) rotateX(0deg); opacity: 1; filter: brightness(2.4) saturate(1.4); box-shadow: 0 0 34px rgba(129,140,248,0.75), 0 0 70px rgba(239,68,68,0.35); }
+            64%  { transform: translateY(5px) scale(0.96); filter: brightness(1.35); }
+            100% { transform: translateY(0) scale(1); opacity: 1; filter: brightness(1); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.06); }
         }
 
         .card-nexus.is-summoning {
-            animation: card-summon 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            animation: card-summon 0.82s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            z-index: 220 !important;
         }
 
 
