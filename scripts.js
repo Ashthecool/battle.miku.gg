@@ -102,9 +102,9 @@ lucide.createIcons();
         const delay = ms => new Promise(res => setTimeout(res, ms));
 
         const DEFAULT_CARD_SPEECH = {
-            draw: ["I'm ready.", "Call on me.", "Let's do this."],
-            play: ["I'm in.", "Taking position.", "Here I come."],
-            attack: ["Attack!", "I strike!", "No holding back."],
+            draw: ["I'm [size:20]ready!", "Call on me.", "Let's do this."],
+            play: ["I'm in.", "Taking position.", "Here [size:20]I come."],
+            attack: ["[size:20][anim:shake]Attack!", "I strike!", "No holding back."],
             attacked: ["I'm hit!", "Hey!", "I can take it."]
         };
 
@@ -148,14 +148,75 @@ lucide.createIcons();
 
             const bubble = document.createElement('div');
             bubble.className = `card-speech-bubble card-speech-${eventName}`;
-            bubble.textContent = line;
+            bubble.contentEditable = true;
+            bubble.innerHTML = ''; // Clear textContent
+
+            function parseWord(word) {
+                let size = null;
+                let anim = null;
+                let text = word;
+
+                const sizeMatch = word.match(/\[size:(\d+)\]/);
+                if (sizeMatch) {
+                    size = sizeMatch[1];
+                    text = text.replace(sizeMatch[0], '');
+                }
+
+                const animMatch = word.match(/\[anim:(\w+)\]/);
+                if (animMatch) {
+                    anim = animMatch[1];
+                    text = text.replace(animMatch[0], '');
+                }
+
+                return { text, size, anim };
+            }
+
+            const animMap = {
+                shake: 'anim-1',
+                colorShift: 'anim-2',
+                glow: 'anim-3',
+                bounce: 'anim-4',
+                scalePulse: 'anim-5'
+            };
+
+            const words = line.split(' ');
+            words.forEach((word) => {
+                const parsed = parseWord(word);
+                const span = document.createElement('span');
+                span.className = 'speech-word';
+                if (parsed.anim && animMap[parsed.anim]) {
+                    span.classList.add(animMap[parsed.anim]);
+                }
+
+                span.textContent = parsed.text;
+                if (parsed.size) {
+                    span.style.fontSize = parsed.size + 'px';
+                }
+
+                bubble.appendChild(span);
+                bubble.appendChild(document.createTextNode(' '));
+            });
+            // Remove the last space
+            if (bubble.lastChild.nodeType === Node.TEXT_NODE) {
+                bubble.removeChild(bubble.lastChild);
+            }
+
             cardEl.appendChild(bubble);
 
             setTimeout(() => bubble.classList.add('is-visible'), 20);
+
+            // Animate words after bubble is visible
+            setTimeout(() => {
+                const spans = bubble.querySelectorAll('.speech-word');
+                spans.forEach((span, i) => {
+                    setTimeout(() => span.classList.add('visible'), i * 300); // Stagger by 300ms
+                });
+            }, 200); // Start after bubble animation
+
             setTimeout(() => {
                 bubble.classList.remove('is-visible');
                 setTimeout(() => bubble.remove(), 240);
-            }, opts.duration || 1800);
+            }, opts.duration || 3000); // Increased duration for animation
         }
 
         function evaluateScenario(scenario, unit, context = {}) {

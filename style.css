@@ -107,8 +107,8 @@
             position: absolute;
             left: 50%;
             bottom: calc(100% + 8px);
-            transform: translate(-50%, 8px) scale(0.94);
-            max-width: 190px;
+            transform: translate(-50%, 8px);
+            width: fit-content;
             min-width: 76px;
             padding: 8px 10px;
             border-radius: 8px;
@@ -124,7 +124,7 @@
             pointer-events: none;
             z-index: 500;
             transition: opacity 0.18s ease, transform 0.18s ease;
-            white-space: normal;
+            white-space: nowrap;
         }
 
         .card-speech-bubble::after {
@@ -139,8 +139,61 @@
 
         .card-speech-bubble.is-visible {
             opacity: 1;
-            transform: translate(-50%, 0) scale(1);
+            transform: translate(-50%, 0);
         }
+
+        .card-speech-bubble .speech-word {
+            opacity: 0;
+            transform: scale(0);
+            display: inline-block;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .card-speech-bubble .speech-word.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Speech word animations */
+        @keyframes shake {
+            0% { transform: scale(1) translateX(0); }
+            25% { transform: scale(1) translateX(-2px); }
+            50% { transform: scale(1) translateX(2px); }
+            75% { transform: scale(1) translateX(-1px); }
+            100% { transform: scale(1) translateX(0); }
+        }
+
+        @keyframes colorShift {
+            0% { color: #f8fafc; }
+            25% { color: #ff6b6b; }
+            50% { color: #4ecdc4; }
+            75% { color: #ffe66d; }
+            100% { color: #f8fafc; }
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px #f8fafc; }
+            50% { text-shadow: 0 0 10px #f8fafc, 0 0 20px #f8fafc; }
+            100% { text-shadow: 0 0 5px #f8fafc; }
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: scale(1) translateY(0); }
+            40% { transform: scale(1) translateY(-3px); }
+            60% { transform: scale(1) translateY(-2px); }
+        }
+
+        @keyframes scalePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .speech-word.visible.anim-1 { animation: shake 0.6s ease-in-out infinite; }
+        .speech-word.visible.anim-2 { animation: colorShift 2s ease-in-out infinite; }
+        .speech-word.visible.anim-3 { animation: glow 1.5s ease-in-out infinite; }
+        .speech-word.visible.anim-4 { animation: bounce 1s ease-in-out infinite; }
+        .speech-word.visible.anim-5 { animation: scalePulse 1s ease-in-out infinite; }
 
         .card-speech-attack {
             border-color: rgba(248,113,113,0.38);
