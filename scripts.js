@@ -154,6 +154,8 @@ lucide.createIcons();
             function parseWord(word) {
                 let size = null;
                 let anim = null;
+                let style = null;
+                let color = null;
                 let text = word;
 
                 const sizeMatch = word.match(/\[size:(\d+)\]/);
@@ -168,7 +170,21 @@ lucide.createIcons();
                     text = text.replace(animMatch[0], '');
                 }
 
-                return { text, size, anim };
+                // [style:fire|ice|gold|electric|corrupt|neon|void|blood|shadow|glitch|wave|spin]
+                const styleMatch = word.match(/\[style:([\w]+)\]/);
+                if (styleMatch) {
+                    style = styleMatch[1];
+                    text = text.replace(styleMatch[0], '');
+                }
+
+                // [color:#hexcode] — arbitrary color
+                const colorMatch = word.match(/\[color:(#[0-9a-fA-F]{3,6})\]/);
+                if (colorMatch) {
+                    color = colorMatch[1];
+                    text = text.replace(colorMatch[0], '');
+                }
+
+                return { text, size, anim, style, color };
             }
 
             const animMap = {
@@ -179,6 +195,22 @@ lucide.createIcons();
                 scalePulse: 'anim-5'
             };
 
+            // Map style tag names to existing desc-* CSS classes
+            const styleClassMap = {
+                fire: 'desc-fire',
+                ice: 'desc-ice',
+                gold: 'desc-gold',
+                electric: 'desc-electric',
+                corrupt: 'desc-corrupt',
+                neon: 'desc-neon',
+                void: 'desc-void',
+                blood: 'desc-blood',
+                shadow: 'desc-shadow',
+                glitch: 'desc-glitch',
+                wave: 'desc-wavechar',
+                spin: 'desc-spin',
+            };
+
             const words = line.split(' ');
             words.forEach((word) => {
                 const parsed = parseWord(word);
@@ -186,6 +218,14 @@ lucide.createIcons();
                 span.className = 'speech-word';
                 if (parsed.anim && animMap[parsed.anim]) {
                     span.classList.add(animMap[parsed.anim]);
+                }
+                if (parsed.style && styleClassMap[parsed.style]) {
+                    span.classList.add(styleClassMap[parsed.style]);
+                    if (parsed.style === 'glitch') span.dataset.text = parsed.text;
+                    if (parsed.style === 'spin' || parsed.style === 'wave') span.style.display = 'inline-block';
+                }
+                if (parsed.color) {
+                    span.style.color = parsed.color;
                 }
 
                 span.textContent = parsed.text;
